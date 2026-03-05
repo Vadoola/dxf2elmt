@@ -20,16 +20,16 @@ opt-level = 3
 dxf = "0.6.0"
 simple-xml-builder = "1.1.0"
 bspline = "1.1.0"
-uuid = { version = "1.16", features = ["serde", "v4"] }
-tempfile = "3.15"
+uuid = { version = "1.21", features = ["serde", "v4"] }
+tempfile = "3.26"
 clap = { version = "4.5", features = ["derive"] }
-anyhow = "1.0.97"
+anyhow = "1.0.102"
 wild = "2.2"
-rayon = "1.10.0"
+rayon = "1.11"
 hex_color = "3.0.0"
 itertools = "0.14"
-parley = "0.2.0"
-unicode-segmentation = "1.12.0"
+parley = "0.7.0"
+unicode-segmentation = "1.12"
 tracing = "0.1"
 venator = { version = "1.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
