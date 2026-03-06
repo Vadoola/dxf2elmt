@@ -43,9 +43,12 @@ struct Args {
     #[clap(short, long, value_parser, default_value_t = false)]
     dtext: bool,
 
-    /// Determine the number of lines you want each spline to have (more lines = greater resolution)
-    #[clap(short, long, value_parser, default_value_t = 20)]
-    spline_step: u32,
+    /// Determine the number of lines you want each spline to have (more lines = greater resolution). By default the number of lines
+    /// will be calculated based on the control points and distance they are from the curve, but can be overriden by setting this value
+    /*#[clap(short, long, value_parser, default_value_t = 20)]
+    spline_step: u32,*/
+    #[clap(short, long)]
+    spline_step: Option<f64>,
 
     /// Toggles information output... defaults to off
     #[clap(short, long, value_parser, default_value_t = false)]

@@ -1,6 +1,6 @@
 use crate::qelmt::Bounding;
 
-use super::{two_dec, ScaleEntity};
+use super::{two_dec, Mean, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline, Solid, Spline};
 use simple_xml_builder::XMLElement;
 use std::ops::{Add, Mul};
@@ -104,8 +104,8 @@ impl From<&LwPolyline> for Polygon {
     }
 }
 
-impl From<(&Spline, u32)> for Polygon {
-    fn from((spline, spline_step): (&Spline, u32)) -> Self {
+impl From<(&Spline, Option<f64>)> for Polygon {
+    fn from((spline, spline_step): (&Spline, Option<f64>)) -> Self {
         let mut i: usize = 0;
         let mut points: Vec<Point> = Vec::new();
         for _a in &spline.control_points {
@@ -126,8 +126,35 @@ impl From<(&Spline, u32)> for Polygon {
             points,
             knots,
         );
+
+
+        //if Spline step is passed in from the command line, use it.
+        //If not calculate the spline step.
+        let spline_step = spline_step.unwrap_or_else(|| {
+            //Calculate the mean distance from the control points to the curve
+            //If the mean distance is < 1 the number of steps is the number of control points
+            //otherwise it's the number of control points multipled by the average distance
+            //then roudned down
+            let dist_mean = spline
+                .control_points
+                .iter()
+                .zip(spline.knot_values.iter())
+                .map(|(cp, &knot)| {
+                    let kp = curr_spline.point(knot);
+                    ((cp.x - kp.x).powi(2) + (cp.y - kp.y).powi(2)).sqrt()
+                })
+                .mean();
+
+                let ctrl_count = spline.control_points.len() as f64;
+                if dist_mean < 1.0 {
+                    ctrl_count
+                } else {
+                    dist_mean * ctrl_count
+                }
+        }).round();
+
         let step: f64 =
-            (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / (spline_step as f64);
+            (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / spline_step;
 
         //there is probably a way to clean up some of this logic and use iterators
         //although it looks like step_by doesn't work on a f64 range...hmmm
@@ -138,14 +165,12 @@ impl From<(&Spline, u32)> for Polygon {
                 ((curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / step) as usize + 1,
             );
             let mut j: f64 = curr_spline.knot_domain().0;
-            i = 0;
             while j < curr_spline.knot_domain().1 {
                 coords.push(Coordinate {
                     x: curr_spline.point(j).x,
                     y: -curr_spline.point(j).y,
                 });
                 j += step;
-                i += 1;
             }
             coords
         };

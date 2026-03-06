@@ -12,7 +12,7 @@ use std::f64::consts::PI;
 use std::fmt::Display;
 use uuid::Uuid;
 
-use tracing::{debug, error, info, span, trace, Level};
+use tracing::{error, info, span, trace, Level};
 
 pub mod arc;
 pub use arc::Arc;
@@ -46,7 +46,11 @@ fn find_block<'a>(drw: &'a Drawing, name: &str) -> Option<&'a Block> {
     drw.blocks().filter(|bl| bl.name == name).take(1).next()
 }
 
+//Due to the way I'm using this Either enum, clippy apparenlty can't detect that it's used
+//so I get an unused code warning. Apparently the solution is either alow unused for the enum
+//or restructure my code to make it more clear to clippy that it is indead used...
 #[derive(Debug)]
+#[allow(unused)]
 enum Either<L, R> {
     Left(L),
     Right(R),
@@ -67,6 +71,22 @@ pub struct Definition {
     informations: &'static str,
     description: Description,
     //counts
+}
+
+pub trait Mean {
+    fn mean(self) -> f64;
+}
+
+impl<F, T> Mean for T
+where
+    T: Iterator<Item = F>,
+    F: std::borrow::Borrow<f64>,
+{
+    fn mean(self) -> f64 {
+        self.zip(1.. ).fold(0., |s, (e, i)| {
+            (*e.borrow() + s * f64::from(i - 1)) / f64::from(i)
+        })
+    }
 }
 
 trait Bounding {
@@ -98,7 +118,7 @@ trait Arity {
 
     // Uses the Shoelace Formula to calculate the area of a polygon from an
     // iterator of coordinates
-    fn area<'a>(coords: impl Iterator<Item = &'a dxf::Point> + Clone + ExactSizeIterator) -> f64 {
+    fn area<'a>(coords: impl Clone + ExactSizeIterator<Item = &'a dxf::Point>) -> f64 {
         let len = coords.len();
         (coords
             .circular_tuple_windows()
@@ -299,7 +319,7 @@ impl Rectangularity for LwPolyline {
 }
 
 impl Definition {
-    pub fn new(name: impl Into<String>, spline_step: u32, drw: &Drawing) -> Self {
+    pub fn new(name: impl Into<String>, spline_step: Option<f64>, drw: &Drawing) -> Self {
         /*for st in drw.styles() {
             dbg!(st);
         }*/
@@ -639,14 +659,14 @@ pub(crate) struct Offset {
 #[derive(Debug)]
 pub struct ObjectsBuilder<'a> {
     ent: &'a Entity,
-    spline_step: u32,
+    spline_step: Option<f64>,
     blocks: &'a [&'a Block],
     offset: Offset,
     scale_fact: ScaleFactor,
 }
 
 impl<'a> ObjectsBuilder<'a> {
-    pub fn new(ent: &'a Entity, spline_step: u32) -> Self {
+    pub fn new(ent: &'a Entity, spline_step: Option<f64>) -> Self {
         Self {
             ent,
             spline_step,
@@ -1121,8 +1141,8 @@ impl From<&Description> for XMLElement {
         drw.entities().filter_map(|ent| Objects::try_from(ent).ok()).collect();
     }
 }*/
-impl From<(&Drawing, u32)> for Description {
-    fn from((drw, spline_step): (&Drawing, u32)) -> Self {
+impl From<(&Drawing, Option<f64>)> for Description {
+    fn from((drw, spline_step): (&Drawing, Option<f64>)) -> Self {
         let _from_drw_span = span!(Level::TRACE, "Converting Drawing to Description");
 
         Self {
@@ -1307,7 +1327,7 @@ impl From<HorizontalTextJustification> for HAlignment {
             HorizontalTextJustification::Right => HAlignment::Right,
 
             //TODO: Handling the Aligned Middle and Fit alignments are a bit more complicated
-            //for now I'll just default if it gets one of those we Alighn Left
+            //for now I'll just default if it gets one of those we Align Left
             _ => HAlignment::Left,
         }
     }

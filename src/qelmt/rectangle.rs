@@ -1,7 +1,6 @@
 use super::{two_dec, Bounding, Rectangularity, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
-use tracing::debug;
 
 #[derive(Debug)]
 pub struct Rectangle {
