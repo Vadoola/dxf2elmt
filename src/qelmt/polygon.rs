@@ -127,23 +127,23 @@ impl From<(&Spline, Option<f64>)> for Polygon {
             knots,
         );
 
-
         //if Spline step is passed in from the command line, use it.
         //If not calculate the spline step.
-        let spline_step = spline_step.unwrap_or_else(|| {
-            //Calculate the mean distance from the control points to the curve
-            //If the mean distance is < 1 the number of steps is the number of control points
-            //otherwise it's the number of control points multipled by the average distance
-            //then roudned down
-            let dist_mean = spline
-                .control_points
-                .iter()
-                .zip(spline.knot_values.iter())
-                .map(|(cp, &knot)| {
-                    let kp = curr_spline.point(knot);
-                    ((cp.x - kp.x).powi(2) + (cp.y - kp.y).powi(2)).sqrt()
-                })
-                .mean();
+        let spline_step = spline_step
+            .unwrap_or_else(|| {
+                //Calculate the mean distance from the control points to the curve
+                //If the mean distance is < 1 the number of steps is the number of control points
+                //otherwise it's the number of control points multipled by the average distance
+                //then roudned down
+                let dist_mean = spline
+                    .control_points
+                    .iter()
+                    .zip(spline.knot_values.iter())
+                    .map(|(cp, &knot)| {
+                        let kp = curr_spline.point(knot);
+                        ((cp.x - kp.x).powi(2) + (cp.y - kp.y).powi(2)).sqrt()
+                    })
+                    .mean();
 
                 let ctrl_count = spline.control_points.len() as f64;
                 if dist_mean < 1.0 {
@@ -151,10 +151,10 @@ impl From<(&Spline, Option<f64>)> for Polygon {
                 } else {
                     dist_mean * ctrl_count
                 }
-        }).round();
+            })
+            .round();
 
-        let step: f64 =
-            (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / spline_step;
+        let step: f64 = (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / spline_step;
 
         //there is probably a way to clean up some of this logic and use iterators
         //although it looks like step_by doesn't work on a f64 range...hmmm

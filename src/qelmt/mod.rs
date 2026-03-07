@@ -35,6 +35,9 @@ pub use ellipse::Ellipse;
 pub mod rectangle;
 pub use rectangle::Rectangle;
 
+pub mod style;
+//pub use style::StyleData;
+
 fn find_block<'a>(drw: &'a Drawing, name: &str) -> Option<&'a Block> {
     //this is ugly there has to be a cleaner way to filter this....but for my first attempt at pulling the
     //blocks out of the drawing it works.
@@ -83,7 +86,7 @@ where
     F: std::borrow::Borrow<f64>,
 {
     fn mean(self) -> f64 {
-        self.zip(1.. ).fold(0., |s, (e, i)| {
+        self.zip(1..).fold(0., |s, (e, i)| {
             (*e.borrow() + s * f64::from(i - 1)) / f64::from(i)
         })
     }
