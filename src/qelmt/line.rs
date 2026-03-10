@@ -1,4 +1,6 @@
 use crate::qelmt::Bounding;
+use crate::qelmt::style::LineWeight;
+use crate::qelmt::style::StyleData;
 
 use super::two_dec;
 use super::LineEnd;
@@ -18,7 +20,7 @@ pub struct Line {
     pub x2: f64,
     pub y2: f64,
 
-    style: String,
+    style: StyleData,
     end1: LineEnd,
     antialias: bool,
 }
@@ -41,11 +43,10 @@ impl From<&entities::Line> for Line {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if line.thickness > 0.5 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         }
     }
 }
@@ -72,11 +73,10 @@ impl TryFrom<&Polyline> for Line {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if poly.thickness > 0.5 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         })
     }
 }
@@ -103,11 +103,10 @@ impl TryFrom<&LwPolyline> for Line {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if poly.thickness > 0.1 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         })
     }
 }
@@ -147,8 +146,7 @@ impl From<&entities::Leader> for Leader {
                             "line-style:normal;line-weight:thin;filling:none;color:black"
                         }
                         .into(),*/
-                        style: "line-style:normal;line-weight:normal;filling:none;color:black"
-                            .into(),
+                        style: StyleData::default(),
                     }
                 })
                 .collect(),

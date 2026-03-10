@@ -1,3 +1,5 @@
+use crate::qelmt::style::{LineWeight, StyleData};
+
 use super::{two_dec, Bounding, Rectangularity, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
@@ -6,7 +8,7 @@ use simple_xml_builder::XMLElement;
 pub struct Rectangle {
     height: f64,
     width: f64,
-    style: String,
+    style: StyleData,
 
     //need to brush up on my Rust scoping rules, isn't there a way to make this pub to just the module?
     pub x: f64,
@@ -34,7 +36,7 @@ impl TryFrom<&Polyline> for Rectangle {
             rx: 0.0,
             ry: 0.0,
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
         })
     }
 }
@@ -55,7 +57,7 @@ impl TryFrom<&LwPolyline> for Rectangle {
             rx: 0.0,
             ry: 0.0,
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
         })
     }
 }

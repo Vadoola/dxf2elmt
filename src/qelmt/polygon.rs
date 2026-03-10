@@ -1,4 +1,4 @@
-use crate::qelmt::Bounding;
+use crate::qelmt::{Bounding, style::{LineWeight, StyleData}};
 
 use super::{two_dec, Mean, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline, Solid, Spline};
@@ -48,7 +48,7 @@ impl Add for Point {
 
 #[derive(Debug)]
 pub struct Polygon {
-    style: String,
+    style: StyleData,
     antialias: bool,
     pub coordinates: Vec<Coordinate>,
     closed: bool,
@@ -70,11 +70,10 @@ impl From<&Polyline> for Polygon {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if poly.thickness > 0.1 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         }
     }
 }
@@ -95,11 +94,10 @@ impl From<&LwPolyline> for Polygon {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if poly.thickness > 0.1 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         }
     }
 }
@@ -181,7 +179,7 @@ impl From<(&Spline, Option<f64>)> for Polygon {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
         }
     }
 }
@@ -212,11 +210,10 @@ impl From<&Solid> for Polygon {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if solid.thickness > 0.5 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         }
     }
 }

@@ -1,11 +1,9 @@
+use hex_color::HexColor;
 use std::{fmt::Display, str::FromStr};
 
-use hex_color::HexColor;
-//Style Strings
-//"line-style:normal;line-weight:normal;filling:none;color:black"
-//"line-style:normal;line-weight:thin;filling:none;color:black"
-
-enum LineStyle {
+#[derive(Debug, Default)]
+pub(crate) enum LineStyle {
+    #[default]
     Normal,
     Dashed,
     Dotted,
@@ -27,9 +25,11 @@ impl Display for LineStyle {
     }
 }
 
-enum LineWeight {
+#[derive(Debug, Default)]
+pub(crate) enum LineWeight {
     None,
     Thin,
+    #[default]
     Normal,
     Strong,
     High,
@@ -56,8 +56,7 @@ impl Display for LineWeight {
         )
     }
 }
-
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct QETColor {
     color: Option<HexColor>,
 }
@@ -68,6 +67,7 @@ impl From<HexColor> for QETColor {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 impl Display for QETColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -983,6 +983,7 @@ impl Display for QETColor {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 impl FromStr for QETColor {
     type Err = &'static str; //add better error later;
 
@@ -2185,13 +2186,38 @@ impl FromStr for QETColor {
     }
 }
 
-//Hmm it lokos like these colors aren't actually stored as hex values but
-//as a string like so:
-//filling:HTMLBrownWheat
-//color:blue
-pub struct StyleData {
-    line_style: LineStyle,
-    line_weight: LineWeight,
-    fill_color: QETColor,
-    line_color: QETColor,
+#[derive(Debug)]
+pub(crate) struct StyleData {
+    pub line_style: LineStyle,
+    pub line_weight: LineWeight,
+    pub fill_color: QETColor,
+    pub line_color: QETColor,
+}
+
+impl Default for StyleData {
+    fn default() -> Self {
+        Self {
+            line_style: LineStyle::default(),
+            line_weight: LineWeight::default(),
+            fill_color: QETColor::default(),
+            line_color: QETColor {
+                color: Some(HexColor::rgb(0, 0, 0)),
+            },
+        }
+    }
+}
+
+//Style Strings
+//"line-style:normal;line-weight:normal;filling:none;color:black"
+//"line-style:normal;line-weight:thin;filling:none;color:black"
+impl Display for StyleData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            line_style,
+            line_weight,
+            fill_color,
+            line_color,
+        } = self;
+        write!(f, "line-style:{line_style};line-weight:{line_weight};filling:{fill_color};color:{line_color}")
+    }
 }

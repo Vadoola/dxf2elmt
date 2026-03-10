@@ -1,3 +1,5 @@
+use crate::qelmt::style::{LineWeight, StyleData};
+
 use super::{two_dec, Bounding, Circularity, ScaleEntity};
 use dxf::entities::{self, Circle, LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
@@ -6,7 +8,7 @@ use simple_xml_builder::XMLElement;
 pub struct Ellipse {
     height: f64,
     width: f64,
-    style: String,
+    style: StyleData,
 
     //need to brush up on my Rust scoping rules, isn't there a way to make this pub to just the module?
     pub x: f64,
@@ -27,11 +29,10 @@ impl From<&Circle> for Ellipse {
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
             style: if circ.thickness > 0.5 {
-                "line-style:normal;line-weight:normal;filling:none;color:black"
+                StyleData::default()
             } else {
-                "line-style:normal;line-weight:thin;filling:none;color:black"
-            }
-            .into(),
+                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            },
         }
     }
 }
@@ -47,7 +48,7 @@ impl From<&entities::Ellipse> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
         }
     }
 }
@@ -91,7 +92,7 @@ impl TryFrom<&Polyline> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
         })
     }
 }
@@ -133,7 +134,7 @@ impl TryFrom<&LwPolyline> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: "line-style:normal;line-weight:thin;filling:none;color:black".into(),
+            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
         })
     }
 }
