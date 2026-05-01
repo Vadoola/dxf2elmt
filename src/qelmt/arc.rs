@@ -1,4 +1,7 @@
-use crate::qelmt::{Bounding, style::{LineWeight, StyleData}};
+use crate::qelmt::{
+    style::{LineWeight, StyleData},
+    Bounding,
+};
 
 use super::{two_dec, ScaleEntity};
 use dxf::entities;
@@ -45,14 +48,17 @@ impl From<&entities::Arc> for Arc {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            
+
             //I might want to update these defaults, no sure, but I'm leaving the values
             //the same as how Antonioaja had it and how it's been, but using the new
             //Syle struct for now
             style: if arc.thickness > 0.1 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         }
     }

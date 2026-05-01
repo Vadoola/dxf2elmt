@@ -1,4 +1,7 @@
-use crate::qelmt::{Bounding, style::{LineWeight, StyleData}};
+use crate::qelmt::{
+    style::{LineWeight, StyleData},
+    Bounding,
+};
 
 use super::{two_dec, Mean, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline, Solid, Spline};
@@ -54,134 +57,206 @@ pub struct Polygon {
     closed: bool,
 }
 
-impl From<&Polyline> for Polygon {
-    fn from(poly: &Polyline) -> Self {
-        Polygon {
-            coordinates: poly
-                .__vertices_and_handles
-                .iter()
-                .map(|(vertex, _handle)| Coordinate {
-                    x: vertex.location.x,
-                    y: -vertex.location.y,
-                })
-                .collect(),
-            closed: poly.is_closed(),
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: if poly.thickness > 0.1 {
-                StyleData::default()
-            } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
-            },
-        }
-    }
+enum PolySource<'a> {
+    Polyline(&'a Polyline),
+    LwPolyline(&'a LwPolyline),
+    Spline(&'a Spline),
 }
 
-impl From<&LwPolyline> for Polygon {
-    fn from(poly: &LwPolyline) -> Self {
-        Polygon {
-            coordinates: poly
-                .vertices
-                .iter()
-                .map(|vertex| Coordinate {
-                    x: vertex.x,
-                    y: -vertex.y,
-                })
-                .collect(),
-            closed: poly.is_closed(),
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: if poly.thickness > 0.1 {
-                StyleData::default()
-            } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
-            },
-        }
-    }
+pub struct PolyBuilder<'a> {
+    source: PolySource<'a>,
+    //style: StyleData,
+    spline_step: Option<f64>,
+    antialias: bool,
 }
 
-impl From<(&Spline, Option<f64>)> for Polygon {
-    fn from((spline, spline_step): (&Spline, Option<f64>)) -> Self {
-        let mut i: usize = 0;
-        let mut points: Vec<Point> = Vec::new();
-        for _a in &spline.control_points {
-            points.push(Point::new(
-                spline.control_points[i].x,
-                spline.control_points[i].y,
-            ));
-            i += 1;
+impl<'a> PolyBuilder<'a> {
+    pub fn from_polyline(poly: &'a Polyline) -> Self {
+        Self {
+            source: PolySource::Polyline(poly),
+            spline_step: None,
+            //style: StyleData::default(),
+            antialias: false,
         }
-        i = 0;
-        let mut knots: Vec<f64> = Vec::new();
-        for _a in &spline.knot_values {
-            knots.push(spline.knot_values[i]);
-            i += 1;
+    }
+
+    pub fn from_lwpolyline(lwpoly: &'a LwPolyline) -> Self {
+        Self {
+            source: PolySource::LwPolyline(lwpoly),
+            spline_step: None,
+            //style: StyleData::default(),
+            antialias: false,
         }
-        let curr_spline = bspline::BSpline::new(
-            spline.degree_of_curve.unsigned_abs() as usize,
-            points,
-            knots,
-        );
+    }
 
-        //if Spline step is passed in from the command line, use it.
-        //If not calculate the spline step.
-        let spline_step = spline_step
-            .unwrap_or_else(|| {
-                //Calculate the mean distance from the control points to the curve
-                //If the mean distance is < 1 the number of steps is the number of control points
-                //otherwise it's the number of control points multipled by the average distance
-                //then roudned down
-                let dist_mean = spline
-                    .control_points
-                    .iter()
-                    .zip(spline.knot_values.iter())
-                    .map(|(cp, &knot)| {
-                        let kp = curr_spline.point(knot);
-                        ((cp.x - kp.x).powi(2) + (cp.y - kp.y).powi(2)).sqrt()
-                    })
-                    .mean();
+    pub fn from_spline(spline: &'a Spline) -> Self {
+        Self {
+            source: PolySource::Spline(spline),
+            spline_step: None,
+            //style: StyleData::default(),
+            antialias: false,
+        }
+    }
 
-                let ctrl_count = spline.control_points.len() as f64;
-                if dist_mean < 1.0 {
-                    ctrl_count
-                } else {
-                    dist_mean * ctrl_count
+    pub fn spline_step(self, spline_step: f64) -> Self {
+        Self {
+            spline_step: Some(spline_step),
+            ..self
+        }
+    }
+
+    /*pub fn style(self, style: StyleData) -> Self {
+        Self {
+            style,
+            ..self
+        }
+    }*/
+
+    pub fn antialias(self, antialias: bool) -> Self {
+        Self { antialias, ..self }
+    }
+
+    pub fn build(self) -> Polygon {
+        match self.source {
+            PolySource::Polyline(polyline) => {
+                Polygon {
+                    coordinates: polyline
+                        .__vertices_and_handles
+                        .iter()
+                        .map(|(vertex, _handle)| Coordinate {
+                            x: vertex.location.x,
+                            y: -vertex.location.y,
+                        })
+                        .collect(),
+                    closed: polyline.is_closed(),
+                    //in the original code antialias is always set to false...I'm guessing for performance
+                    //reasons...I'm trying to think if there is a time we might want to turn it on?
+                    antialias: self.antialias,
+                    style: if polyline.thickness > 0.1 {
+                        StyleData::default()
+                    } else {
+                        StyleData {
+                            line_weight: LineWeight::Thin,
+                            ..Default::default()
+                        }
+                    },
                 }
-            })
-            .round();
-
-        let step: f64 = (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / spline_step;
-
-        //there is probably a way to clean up some of this logic and use iterators
-        //although it looks like step_by doesn't work on a f64 range...hmmm
-        //but I haven't inspected it too closely, and for now am pretty much just duplicating
-        //it as antonioaja had it
-        let coordinates = {
-            let mut coords = Vec::with_capacity(
-                ((curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / step) as usize + 1,
-            );
-            let mut j: f64 = curr_spline.knot_domain().0;
-            while j < curr_spline.knot_domain().1 {
-                coords.push(Coordinate {
-                    x: curr_spline.point(j).x,
-                    y: -curr_spline.point(j).y,
-                });
-                j += step;
             }
-            coords
-        };
+            PolySource::LwPolyline(lw_polyline) => {
+                Polygon {
+                    coordinates: lw_polyline
+                        .vertices
+                        .iter()
+                        .map(|vertex| Coordinate {
+                            x: vertex.x,
+                            y: -vertex.y,
+                        })
+                        .collect(),
+                    closed: lw_polyline.is_closed(),
+                    //in the original code antialias is always set to false...I'm guessing for performance
+                    //reasons...I'm trying to think if there is a time we might want to turn it on?
+                    antialias: self.antialias,
+                    style: if lw_polyline.thickness > 0.1 {
+                        StyleData::default()
+                    } else {
+                        StyleData {
+                            line_weight: LineWeight::Thin,
+                            ..Default::default()
+                        }
+                    },
+                }
+            }
+            PolySource::Spline(spline) => {
+                let curr_spline = bspline_from_spline(spline);
 
-        Polygon {
-            coordinates,
-            closed: spline.is_closed(),
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
+                let spline_step = self.spline_step.unwrap_or_else(|| {
+                    {
+                        //Calculate the mean distance from the control points to the curve
+                        //If the mean distance is < 1 the number of steps is the number of control points
+                        //otherwise it's the number of control points multipled by the average distance
+                        //then roudned down
+                        let dist_mean = spline
+                            .control_points
+                            .iter()
+                            .zip(spline.knot_values.iter())
+                            .map(|(cp, &knot)| {
+                                let kp = curr_spline.point(knot);
+                                ((cp.x - kp.x).powi(2) + (cp.y - kp.y).powi(2)).sqrt()
+                            })
+                            .mean();
+
+                        let ctrl_count = spline.control_points.len() as f64;
+                        if dist_mean < 1.0 {
+                            ctrl_count
+                        } else {
+                            dist_mean * ctrl_count
+                        }
+                    }
+                    .round()
+                });
+
+                let step: f64 =
+                    (curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / spline_step;
+
+                //there is probably a way to clean up some of this logic and use iterators
+                //although it looks like step_by doesn't work on a f64 range...hmmm
+                //but I haven't inspected it too closely, and for now am pretty much just duplicating
+                //it as antonioaja had it
+                let coordinates = {
+                    let mut coords = Vec::with_capacity(
+                        ((curr_spline.knot_domain().1 - curr_spline.knot_domain().0) / step)
+                            as usize
+                            + 1,
+                    );
+                    let mut j: f64 = curr_spline.knot_domain().0;
+                    while j < curr_spline.knot_domain().1 {
+                        coords.push(Coordinate {
+                            x: curr_spline.point(j).x,
+                            y: -curr_spline.point(j).y,
+                        });
+                        j += step;
+                    }
+                    coords
+                };
+
+                Polygon {
+                    coordinates,
+                    closed: spline.is_closed(),
+                    //in the original code antialias is always set to false...I'm guessing for performance
+                    //reasons...I'm trying to think if there is a time we might want to turn it on?
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..Default::default()
+                    },
+                }
+            }
         }
     }
+}
+
+fn bspline_from_spline(spline: &Spline) -> bspline::BSpline<Point, f64> {
+    let mut i: usize = 0;
+    let mut points: Vec<Point> = Vec::new();
+    for _a in &spline.control_points {
+        points.push(Point::new(
+            spline.control_points[i].x,
+            spline.control_points[i].y,
+        ));
+        i += 1;
+    }
+    i = 0;
+    let mut knots: Vec<f64> = Vec::new();
+    for _a in &spline.knot_values {
+        knots.push(spline.knot_values[i]);
+        i += 1;
+    }
+
+    bspline::BSpline::new(
+        spline.degree_of_curve.unsigned_abs() as usize,
+        points,
+        knots,
+    )
 }
 
 impl From<&Solid> for Polygon {
@@ -212,7 +287,10 @@ impl From<&Solid> for Polygon {
             style: if solid.thickness > 0.5 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         }
     }

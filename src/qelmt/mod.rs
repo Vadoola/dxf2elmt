@@ -35,6 +35,8 @@ pub use ellipse::Ellipse;
 pub mod rectangle;
 pub use rectangle::Rectangle;
 
+use crate::qelmt::polygon::PolyBuilder;
+
 pub mod style;
 //pub use style::StyleData;
 
@@ -322,17 +324,30 @@ impl Rectangularity for LwPolyline {
 }
 
 impl Definition {
-    pub fn new(name: impl Into<String>, spline_step: Option<f64>, drw: &Drawing) -> Self {
-        /*for st in drw.styles() {
-            dbg!(st);
-        }*/
+    pub fn new(name: impl Into<String>, drw: &Drawing) -> Self {
         let scale_factor = Self::scale_factor(drw.header.default_drawing_units);
         let description = {
-            let mut description: Description = (drw, spline_step).into();
+            let mut description: Description = DescBuilder::new(drw).build();
             description.scale(scale_factor, scale_factor);
             description
         };
 
+        Self::build_def(name, description)
+    }
+
+    pub fn new_with_step(name: impl Into<String>, spline_step: f64, drw: &Drawing) -> Self {
+        let scale_factor = Self::scale_factor(drw.header.default_drawing_units);
+        let description = {
+            let mut description: Description =
+                DescBuilder::new(drw).spline_step(spline_step).build();
+            description.scale(scale_factor, scale_factor);
+            description
+        };
+
+        Self::build_def(name, description)
+    }
+
+    fn build_def(name: impl Into<String>, description: Description) -> Self {
         //The below calculation for width and hotspot_x are taken from the qet source code
         let (width, hotspot_x) = {
             let tmp_width = description.right_bound() - description.left_bound();
@@ -669,13 +684,20 @@ pub struct ObjectsBuilder<'a> {
 }
 
 impl<'a> ObjectsBuilder<'a> {
-    pub fn new(ent: &'a Entity, spline_step: Option<f64>) -> Self {
+    pub fn new(ent: &'a Entity) -> Self {
         Self {
             ent,
-            spline_step,
+            spline_step: None,
             blocks: &[],
             offset: Offset::default(),
             scale_fact: ScaleFactor::default(),
+        }
+    }
+
+    pub fn spline_step(self, spline_step: f64) -> Self {
+        Self {
+            spline_step: Some(spline_step),
+            ..self
         }
     }
 
@@ -735,7 +757,11 @@ impl<'a> ObjectsBuilder<'a> {
                 Ok(Objects::Arc(arc))
             }
             EntityType::Spline(spline) => {
-                let mut poly: Polygon = (spline, self.spline_step).into();
+                let mut pbuilder = PolyBuilder::from_spline(spline);
+                if let Some(spline_step) = self.spline_step {
+                    pbuilder = pbuilder.spline_step(spline_step);
+                }
+                let mut poly: Polygon = pbuilder.build();
 
                 match poly.coordinates.len() {
                     0 | 1 => Err("Error removing empty Spline"),
@@ -859,7 +885,7 @@ impl<'a> ObjectsBuilder<'a> {
 
                         Ok(Objects::Rectangle(rectangle))
                     } else {
-                        let mut poly: Polygon = polyline.into();
+                        let mut poly: Polygon = PolyBuilder::from_polyline(polyline).build();
 
                         poly.scale(self.scale_fact.x, self.scale_fact.y);
 
@@ -909,7 +935,7 @@ impl<'a> ObjectsBuilder<'a> {
 
                         Ok(Objects::Rectangle(rectangle))
                     } else {
-                        let mut poly: Polygon = lwpolyline.into();
+                        let mut poly: Polygon = PolyBuilder::from_lwpolyline(lwpolyline).build();
 
                         poly.scale(self.scale_fact.x, self.scale_fact.y);
 
@@ -955,7 +981,7 @@ impl<'a> ObjectsBuilder<'a> {
                         .entities
                         .iter()
                         .filter_map(|ent| {
-                            ObjectsBuilder::new(ent, self.spline_step)
+                            let mut obuilder = ObjectsBuilder::new(ent)
                                 .offsets(
                                     ins.location.x - block.base_point.x,
                                     ins.location.y - block.base_point.y,
@@ -964,9 +990,12 @@ impl<'a> ObjectsBuilder<'a> {
                                     self.scale_fact.x * ins.x_scale_factor,
                                     self.scale_fact.y * ins.y_scale_factor,
                                 )
-                                .blocks(self.blocks)
-                                .build()
-                                .ok()
+                                .blocks(self.blocks);
+                            if let Some(spline_step) = self.spline_step {
+                                obuilder = obuilder.spline_step(spline_step);
+                            }
+
+                            obuilder.build().ok()
                         })
                         .collect(),
                 ))
@@ -1137,69 +1166,74 @@ impl From<&Description> for XMLElement {
     }
 }
 
-/*impl TryFrom<Drawing> for Description {
-    type Error = &'static str; //add better error later
+//#[derive(Debug)
+pub struct DescBuilder<'a> {
+    drw: &'a Drawing,
+    spline_step: Option<f64>,
+}
 
-    fn try_from(drw: Drawing) -> Result<Self, Self::Error> {
-        drw.entities().filter_map(|ent| Objects::try_from(ent).ok()).collect();
+impl<'a> DescBuilder<'a> {
+    pub fn new(drw: &'a Drawing) -> Self {
+        Self {
+            drw,
+            spline_step: None,
+        }
     }
-}*/
-impl From<(&Drawing, Option<f64>)> for Description {
-    fn from((drw, spline_step): (&Drawing, Option<f64>)) -> Self {
+
+    pub fn spline_step(self, spline_step: f64) -> Self {
+        Self {
+            spline_step: Some(spline_step),
+            ..self
+        }
+    }
+
+    pub fn build(self) -> Description {
         let _from_drw_span = span!(Level::TRACE, "Converting Drawing to Description");
 
-        Self {
-            objects: drw
+        Description {
+            objects: self
+                .drw
                 .entities()
-                .filter_map(|ent| match &ent.specific {
-                    EntityType::Insert(ins) => {
-                        let block = find_block(drw, &ins.name)?;
-                        let blocks: Vec<&Block> = drw.blocks().collect();
-                        trace!(
-                            "Creating Group from block {}. Pos(x:{}, y:{}). Scale(x:{}, y:{})",
-                            ins.name,
-                            ins.location.x,
-                            ins.location.y,
-                            ins.x_scale_factor,
-                            ins.y_scale_factor
-                        );
-                        Some(Objects::Group(
-                            block
-                                .entities
-                                .iter()
-                                .filter_map(|ent| {
-                                    ObjectsBuilder::new(ent, spline_step)
-                                        //very confused here, in one test file if I leave out the ins locations here it puts things in the
-                                        //wrong location, and puts them in the correct location when I add the ins location in.
-                                        //but in another file it's the opposite, not sure why the difference...
-                                        .offsets(ins.location.x, ins.location.y)
-                                        .scaling(ins.x_scale_factor, ins.y_scale_factor)
-                                        .blocks(&blocks)
-                                        .build()
-                                        .ok()
-                                })
-                                .collect(),
-                        ))
+                .filter_map(|ent| if let EntityType::Insert(ins) = &ent.specific {
+                    let block = find_block(self.drw, &ins.name)?;
+                    let blocks: Vec<&Block> = self.drw.blocks().collect();
+                    trace!(
+                        "Creating Group from block {}. Pos(x:{}, y:{}). Scale(x:{}, y:{})",
+                        ins.name,
+                        ins.location.x,
+                        ins.location.y,
+                        ins.x_scale_factor,
+                        ins.y_scale_factor
+                    );
+                    Some(Objects::Group(
+                        block
+                            .entities
+                            .iter()
+                            .filter_map(|ent| {
+                                let builder = ObjectsBuilder::new(ent)
+                                    .offsets(ins.location.x, ins.location.y)
+                                    .scaling(ins.x_scale_factor, ins.y_scale_factor)
+                                    .blocks(&blocks);
+                                if let Some(spline_step) = self.spline_step {
+                                    builder.spline_step(spline_step).build().ok()
+                                } else {
+                                    builder.build().ok()
+                                }
+                            })
+                            .collect(),
+                    ))
+                } else {
+                    let builder = ObjectsBuilder::new(ent);
+                    if let Some(spline_step) = self.spline_step {
+                        builder.spline_step(spline_step).build().ok()
+                    } else {
+                        builder.build().ok()
                     }
-                    _ => ObjectsBuilder::new(ent, spline_step).build().ok(),
                 })
                 .collect(),
         }
     }
 }
-
-//probably don't need to worry about this as they won't exist in the dxf...
-/*pub struct Terminal {
-    x: f64,
-    y: f64,
-    uuid: Uuid,
-    name: String,
-    orientation: TermOrient,
-    //type?
-    //  Generic
-    //  Indoor Terminal Block
-    //  External Terminal Block
-}*/
 
 #[derive(Debug)]
 pub struct Names {

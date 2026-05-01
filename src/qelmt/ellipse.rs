@@ -31,7 +31,10 @@ impl From<&Circle> for Ellipse {
             style: if circ.thickness > 0.5 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         }
     }
@@ -48,7 +51,10 @@ impl From<&entities::Ellipse> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
+            style: StyleData {
+                line_weight: LineWeight::Thin,
+                ..Default::default()
+            },
         }
     }
 }
@@ -92,7 +98,10 @@ impl TryFrom<&Polyline> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
+            style: StyleData {
+                line_weight: LineWeight::Thin,
+                ..Default::default()
+            },
         })
     }
 }
@@ -134,7 +143,10 @@ impl TryFrom<&LwPolyline> for Ellipse {
             //in the original code antialias is always set to false...I'm guessing for performance
             //reasons...I'm trying to think if there is a time we might want to turn it on?
             antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
+            style: StyleData {
+                line_weight: LineWeight::Thin,
+                ..Default::default()
+            },
         })
     }
 }

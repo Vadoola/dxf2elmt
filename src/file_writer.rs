@@ -19,7 +19,7 @@ pub fn create_file(
     let mut out_file = tempfile().context("Could not create temporary file");
     if !verbose_output {
         out_file = File::create(&file_name).context("Could not create output file");
-        println!("{friendly_file_name} was created... \nNow converting {old_file_name}...",);
+        println!("{friendly_file_name} was created... \nNow converting {old_file_name}...");
     }
 
     out_file.context("Could not return output file")

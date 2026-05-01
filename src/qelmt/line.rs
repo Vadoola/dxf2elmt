@@ -1,6 +1,6 @@
-use crate::qelmt::Bounding;
 use crate::qelmt::style::LineWeight;
 use crate::qelmt::style::StyleData;
+use crate::qelmt::Bounding;
 
 use super::two_dec;
 use super::LineEnd;
@@ -45,7 +45,10 @@ impl From<&entities::Line> for Line {
             style: if line.thickness > 0.5 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         }
     }
@@ -75,7 +78,10 @@ impl TryFrom<&Polyline> for Line {
             style: if poly.thickness > 0.5 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         })
     }
@@ -105,7 +111,10 @@ impl TryFrom<&LwPolyline> for Line {
             style: if poly.thickness > 0.1 {
                 StyleData::default()
             } else {
-                StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+                StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..Default::default()
+                }
             },
         })
     }

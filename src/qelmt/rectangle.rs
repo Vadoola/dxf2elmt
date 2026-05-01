@@ -36,7 +36,10 @@ impl TryFrom<&Polyline> for Rectangle {
             rx: 0.0,
             ry: 0.0,
             antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()},
+            style: StyleData {
+                line_weight: LineWeight::Thin,
+                ..Default::default()
+            },
         })
     }
 }
@@ -57,7 +60,10 @@ impl TryFrom<&LwPolyline> for Rectangle {
             rx: 0.0,
             ry: 0.0,
             antialias: false,
-            style: StyleData{ line_weight: LineWeight::Thin, ..Default::default()}
+            style: StyleData {
+                line_weight: LineWeight::Thin,
+                ..Default::default()
+            },
         })
     }
 }
