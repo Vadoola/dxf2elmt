@@ -46,7 +46,8 @@ impl Display for LineWeight {
                 Self::Normal => "normal",
 
                 //By process of elimination this must be "Strong"..not sure where that word comes fromt
-                //it doesn't appear to be French for Strong...just need to very that's what this actually is
+                //it doesn't appear to be French for Strong...just need to verify that's what this actually is
+                //doing a bit more digging possible translations for French for this word are great, elevated, etc...so strong probably makes sense
                 // TODO: Verify this
                 Self::Strong => "eleve",
 
@@ -67,6 +68,9 @@ impl From<HexColor> for QETColor {
     }
 }
 
+//Perhaps a way to clean this up and make the code smaller since this is all pretty much static is to move the translations
+//into some sort of file like a csv and then use include_bytes or incldue_str to embed it in the exe
+//then maybe have a global oncecell or something that the first time it gets parsed stored in a hashmap that can be re-used.
 #[allow(clippy::too_many_lines)]
 impl Display for QETColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2218,6 +2222,9 @@ impl Display for StyleData {
             fill_color,
             line_color,
         } = self;
-        write!(f, "line-style:{line_style};line-weight:{line_weight};filling:{fill_color};color:{line_color}")
+        write!(
+            f,
+            "line-style:{line_style};line-weight:{line_weight};filling:{fill_color};color:{line_color}"
+        )
     }
 }

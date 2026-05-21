@@ -1,9 +1,9 @@
 use crate::qelmt::{
-    style::{LineWeight, StyleData},
     Bounding,
+    style::{LineWeight, StyleData},
 };
 
-use super::{two_dec, ScaleEntity};
+use super::{ScaleEntity, two_dec};
 use dxf::entities;
 use simple_xml_builder::XMLElement;
 

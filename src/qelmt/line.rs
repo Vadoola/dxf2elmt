@@ -1,10 +1,10 @@
+use crate::qelmt::Bounding;
 use crate::qelmt::style::LineWeight;
 use crate::qelmt::style::StyleData;
-use crate::qelmt::Bounding;
 
-use super::two_dec;
 use super::LineEnd;
 use super::ScaleEntity;
+use super::two_dec;
 use dxf::entities::{self, LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 

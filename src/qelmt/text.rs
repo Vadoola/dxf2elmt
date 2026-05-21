@@ -1,6 +1,6 @@
 use crate::qelmt::Bounding;
 
-use super::{two_dec, FontInfo, ScaleEntity};
+use super::{FontInfo, ScaleEntity, two_dec};
 use dxf::entities;
 use hex_color::HexColor;
 use simple_xml_builder::XMLElement;

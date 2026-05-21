@@ -1,6 +1,6 @@
 use crate::qelmt::style::{LineWeight, StyleData};
 
-use super::{two_dec, Bounding, Circularity, ScaleEntity};
+use super::{Bounding, Circularity, ScaleEntity, two_dec};
 use dxf::entities::{self, Circle, LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 

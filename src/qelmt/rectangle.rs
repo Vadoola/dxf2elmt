@@ -1,6 +1,6 @@
 use crate::qelmt::style::{LineWeight, StyleData};
 
-use super::{two_dec, Bounding, Rectangularity, ScaleEntity};
+use super::{Bounding, Rectangularity, ScaleEntity, two_dec};
 use dxf::entities::{LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 
