@@ -21,8 +21,28 @@ pub struct Arc {
     antialias: bool,
 }
 
-impl From<&entities::Arc> for Arc {
-    fn from(arc: &entities::Arc) -> Self {
+pub struct ArcBuilder<'a> {
+    arc: &'a entities::Arc,
+    style: Option<StyleData>,
+}
+
+impl<'a> ArcBuilder<'a> {
+    pub fn new(arc: &'a entities::Arc) -> Self {
+        Self {
+            arc,
+            style: None,
+        }
+    }
+
+    pub fn style(self, style: StyleData) -> Self {
+        Self {
+            style: Some(style),
+            ..self
+        }
+    }
+
+    pub fn build(self) -> Arc {
+        let arc = self.arc;
         let temp_angle = if arc.start_angle > arc.end_angle {
             (360.0 - arc.start_angle) + arc.end_angle
         } else {
@@ -53,11 +73,11 @@ impl From<&entities::Arc> for Arc {
             //the same as how Antonioaja had it and how it's been, but using the new
             //Syle struct for now
             style: if arc.thickness > 0.1 {
-                StyleData::default()
+                self.style.unwrap_or_default()
             } else {
                 StyleData {
                     line_weight: LineWeight::Thin,
-                    ..Default::default()
+                    ..self.style.unwrap_or_default()
                 }
             },
         }

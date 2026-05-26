@@ -39,6 +39,7 @@ pub use ellipse::Ellipse;
 pub mod rectangle;
 pub use rectangle::Rectangle;
 
+use crate::qelmt::arc::ArcBuilder;
 use crate::qelmt::polygon::PolyBuilder;
 use crate::qelmt::style::{LineStyle, QETColor, StyleData};
 
@@ -688,18 +689,18 @@ pub struct ObjectsBuilder<'a> {
     blocks: &'a [&'a Block],
     offset: Offset,
     scale_fact: ScaleFactor,
-    style: &'a StyleData,
+    style: Option<StyleData>,
 }
 
 impl<'a> ObjectsBuilder<'a> {
-    pub fn new(ent: &'a Entity, style: &'a StyleData) -> Self {
+    pub fn new(ent: &'a Entity) -> Self {
         Self {
             ent,
             spline_step: None,
             blocks: &[],
             offset: Offset::default(),
             scale_fact: ScaleFactor::default(),
-            style,
+            style: None,
         }
     }
 
@@ -731,12 +732,12 @@ impl<'a> ObjectsBuilder<'a> {
         }
     }
 
-    /*pub fn style(self, style: &'a StyleData) -> Self {
+    pub fn style(self, style: StyleData) -> Self {
         Self {
-            style,
+            style: Some(style),
             ..self
         }
-    }*/
+    }
 
     #[allow(clippy::too_many_lines)]
     pub fn build(self) -> Result<Objects, &'static str /*add better error later*/> {
@@ -770,7 +771,11 @@ impl<'a> ObjectsBuilder<'a> {
                 Ok(Objects::Line(line))
             }
             EntityType::Arc(arc) => {
-                let mut arc: Arc = arc.into();
+                let mut abuilder = ArcBuilder::new(arc);
+                if let Some(sty) = self.style {
+                    abuilder = abuilder.style(sty);
+                }
+                let mut arc = abuilder.build();
 
                 arc.scale(self.scale_fact.x, self.scale_fact.y);
 
@@ -1011,7 +1016,7 @@ impl<'a> ObjectsBuilder<'a> {
                         .iter()
                         .filter_map(|ent| {
                             //TODO: Handle the error cases properly
-                            let mut obuilder = ObjectsBuilder::new(ent, self.style)
+                            let mut obuilder = ObjectsBuilder::new(ent)
                                 .offsets(
                                     ins.location.x - block.base_point.x,
                                     ins.location.y - block.base_point.y,
@@ -1021,8 +1026,13 @@ impl<'a> ObjectsBuilder<'a> {
                                     self.scale_fact.y * ins.y_scale_factor,
                                 )
                                 .blocks(self.blocks);
+                            
                             if let Some(spline_step) = self.spline_step {
                                 obuilder = obuilder.spline_step(spline_step);
+                            }
+
+                            if let Some(sty) = self.style.clone() {
+                                obuilder = obuilder.style(sty);
                             }
 
                             obuilder.build().ok()
@@ -1351,28 +1361,33 @@ impl<'a> DescBuilder<'a> {
                                 .entities
                                 .iter()
                                 .filter_map(|ent| {
-                                    //TODO: Properly handle the line type name not being in the style data
-                                    let builder = ObjectsBuilder::new(ent, self.layer_data.get(ent.common.line_type_name.as_str()).unwrap())
+                                    let mut builder = ObjectsBuilder::new(ent)
                                         .offsets(ins.location.x, ins.location.y)
                                         .scaling(ins.x_scale_factor, ins.y_scale_factor)
-                                        .blocks(&blocks)
-                                        ;
+                                        .blocks(&blocks);
                                     if let Some(spline_step) = self.spline_step {
-                                        builder.spline_step(spline_step).build().ok()
-                                    } else {
-                                        builder.build().ok()
+                                        builder = builder.spline_step(spline_step);
                                     }
+
+                                    if let Some(sty) = self.layer_data.get(ent.common.line_type_name.as_str()) {
+                                        builder = builder.style(sty.clone());
+                                    }
+
+                                    builder.build().ok()
                                 })
                                 .collect(),
                         ))
                     } else {
-                        //TODO: Properly handle the line type name not being in the style data
-                        let builder = ObjectsBuilder::new(ent, self.layer_data.get(ent.common.line_type_name.as_str()).unwrap());
+                        let mut builder = ObjectsBuilder::new(ent);
                         if let Some(spline_step) = self.spline_step {
-                            builder.spline_step(spline_step).build().ok()
-                        } else {
-                            builder.build().ok()
+                            builder = builder.spline_step(spline_step);
                         }
+
+                        if let Some(sty) = self.layer_data.get(ent.common.line_type_name.as_str()) {
+                            builder = builder.style(sty.clone());
+                        }
+
+                        builder.build().ok()
                     }
                 })
                 .collect(),
