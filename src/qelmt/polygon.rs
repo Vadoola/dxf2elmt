@@ -65,7 +65,7 @@ enum PolySource<'a> {
 
 pub struct PolyBuilder<'a> {
     source: PolySource<'a>,
-    //style: StyleData,
+    style: StyleData,
     spline_step: Option<f64>,
     antialias: bool,
 }
@@ -75,7 +75,7 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::Polyline(poly),
             spline_step: None,
-            //style: StyleData::default(),
+            style: StyleData::default(),
             antialias: false,
         }
     }
@@ -84,7 +84,7 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::LwPolyline(lwpoly),
             spline_step: None,
-            //style: StyleData::default(),
+            style: StyleData::default(),
             antialias: false,
         }
     }
@@ -93,7 +93,7 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::Spline(spline),
             spline_step: None,
-            //style: StyleData::default(),
+            style: StyleData::default(),
             antialias: false,
         }
     }
@@ -105,12 +105,12 @@ impl<'a> PolyBuilder<'a> {
         }
     }
 
-    /*pub fn style(self, style: StyleData) -> Self {
+    pub fn style(self, style: StyleData) -> Self {
         Self {
             style,
             ..self
         }
-    }*/
+    }
 
     pub fn antialias(self, antialias: bool) -> Self {
         Self { antialias, ..self }
@@ -133,11 +133,11 @@ impl<'a> PolyBuilder<'a> {
                     //reasons...I'm trying to think if there is a time we might want to turn it on?
                     antialias: self.antialias,
                     style: if polyline.thickness > 0.1 {
-                        StyleData::default()
+                        self.style
                     } else {
                         StyleData {
                             line_weight: LineWeight::Thin,
-                            ..Default::default()
+                            ..self.style
                         }
                     },
                 }
@@ -157,11 +157,11 @@ impl<'a> PolyBuilder<'a> {
                     //reasons...I'm trying to think if there is a time we might want to turn it on?
                     antialias: self.antialias,
                     style: if lw_polyline.thickness > 0.1 {
-                        StyleData::default()
+                        self.style
                     } else {
                         StyleData {
                             line_weight: LineWeight::Thin,
-                            ..Default::default()
+                            ..self.style
                         }
                     },
                 }
@@ -227,7 +227,7 @@ impl<'a> PolyBuilder<'a> {
                     antialias: self.antialias,
                     style: StyleData {
                         line_weight: LineWeight::Thin,
-                        ..Default::default()
+                        ..self.style
                     },
                 }
             }

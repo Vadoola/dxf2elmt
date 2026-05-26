@@ -7,12 +7,16 @@ use hex_color::HexColor;
 use itertools::Itertools;
 use simple_xml_builder::XMLElement;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::f64::consts::PI;
 use std::fmt::Display;
 use uuid::Uuid;
 
-use tracing::{error, info, span, trace, Level};
+use tracing::{Level, error, info, span, trace};
+
+pub mod aci;
+//pub use aci::??;
 
 pub mod arc;
 pub use arc::Arc;
@@ -36,6 +40,7 @@ pub mod rectangle;
 pub use rectangle::Rectangle;
 
 use crate::qelmt::polygon::PolyBuilder;
+use crate::qelmt::style::{LineStyle, QETColor, StyleData};
 
 pub mod style;
 //pub use style::StyleData;
@@ -326,6 +331,8 @@ impl Rectangularity for LwPolyline {
 impl Definition {
     pub fn new(name: impl Into<String>, drw: &Drawing) -> Self {
         let scale_factor = Self::scale_factor(drw.header.default_drawing_units);
+        //dbg!(&drw.header.current_entity_color);
+        //dbg!(&drw.header.current_entity_line_type);
         let description = {
             let mut description: Description = DescBuilder::new(drw).build();
             description.scale(scale_factor, scale_factor);
@@ -681,16 +688,18 @@ pub struct ObjectsBuilder<'a> {
     blocks: &'a [&'a Block],
     offset: Offset,
     scale_fact: ScaleFactor,
+    style: &'a StyleData,
 }
 
 impl<'a> ObjectsBuilder<'a> {
-    pub fn new(ent: &'a Entity) -> Self {
+    pub fn new(ent: &'a Entity, style: &'a StyleData) -> Self {
         Self {
             ent,
             spline_step: None,
             blocks: &[],
             offset: Offset::default(),
             scale_fact: ScaleFactor::default(),
+            style,
         }
     }
 
@@ -722,8 +731,22 @@ impl<'a> ObjectsBuilder<'a> {
         }
     }
 
+    /*pub fn style(self, style: &'a StyleData) -> Self {
+        Self {
+            style,
+            ..self
+        }
+    }*/
+
     #[allow(clippy::too_many_lines)]
     pub fn build(self) -> Result<Objects, &'static str /*add better error later*/> {
+        dbg!(&self.ent.common.color);
+        dbg!(&self.ent.common.color_24_bit);
+        dbg!(&self.ent.common.color_name);
+        dbg!(&self.ent.common.layer);
+        dbg!(&self.ent.common.is_visible);
+        dbg!(&self.ent.common.line_type_name);
+        dbg!(&self.ent.common.layer);
         match &self.ent.specific {
             EntityType::Circle(circle) => {
                 let mut ellipse: Ellipse = circle.into();
@@ -969,19 +992,26 @@ impl<'a> ObjectsBuilder<'a> {
                 };
                 trace!(
                     "Base Point: x: {} / y: {}",
-                    block.base_point.x,
-                    block.base_point.y
+                    block.base_point.x, block.base_point.y
                 );
 
-                trace!("Creating Group from block {}. Pos(x:{}, y:{}). Offset(x:{}, y:{}). Scale(x:{}, y:{})",
-                    ins.name, ins.location.x, ins.location.y, self.offset.x, self.offset.y, self.scale_fact.x * ins.x_scale_factor,
-                    self.scale_fact.y * ins.y_scale_factor);
+                trace!(
+                    "Creating Group from block {}. Pos(x:{}, y:{}). Offset(x:{}, y:{}). Scale(x:{}, y:{})",
+                    ins.name,
+                    ins.location.x,
+                    ins.location.y,
+                    self.offset.x,
+                    self.offset.y,
+                    self.scale_fact.x * ins.x_scale_factor,
+                    self.scale_fact.y * ins.y_scale_factor
+                );
                 Ok(Objects::Group(
                     block
                         .entities
                         .iter()
                         .filter_map(|ent| {
-                            let mut obuilder = ObjectsBuilder::new(ent)
+                            //TODO: Handle the error cases properly
+                            let mut obuilder = ObjectsBuilder::new(ent, self.style)
                                 .offsets(
                                     ins.location.x - block.base_point.x,
                                     ins.location.y - block.base_point.y,
@@ -1170,6 +1200,8 @@ impl From<&Description> for XMLElement {
 pub struct DescBuilder<'a> {
     drw: &'a Drawing,
     spline_step: Option<f64>,
+    line_styles: HashMap<&'a str, LineStyle>,
+    layer_data: HashMap<&'a str, StyleData>
 }
 
 impl<'a> DescBuilder<'a> {
@@ -1177,6 +1209,8 @@ impl<'a> DescBuilder<'a> {
         Self {
             drw,
             spline_step: None,
+            line_styles: HashMap::new(),
+            layer_data: HashMap::new(),
         }
     }
 
@@ -1187,47 +1221,158 @@ impl<'a> DescBuilder<'a> {
         }
     }
 
-    pub fn build(self) -> Description {
+    fn gath_line_styles(&mut self) {
+        self.line_styles = self.drw.line_types().map(|ltype| {
+            //should this be returning a HashMap instead of a Vec? with the Name as the key?
+            let line_style = {
+                if ltype.element_count == 0 {
+                    //if there is no dot dash info it's a solid line
+                    LineStyle::Normal
+                } else {
+                    if ltype.dash_dot_space_lengths.contains(&0.0)
+                        && ltype.dash_dot_space_lengths.iter().any(|f| *f >= 0.0)
+                    {
+                        //negativ values are spaces (number value equals size of space)
+                        //0 values are dots
+                        //positive values are dashes (number value equals size of dash)
+                        //since QET doesn't allow me to specifiy dash or space sizing, it's if it's a mix of 0's and positive values use DotDash
+                        LineStyle::DotDash
+                    } else if ltype.dash_dot_space_lengths.contains(&0.0) {
+                        //if it contains 0.0's and didn't contain values > 0 then it's dotted only
+                        LineStyle::Dotted
+                    } else {
+                        //else it contains positives and negatives but no 0's
+                        LineStyle::Dashed
+                    }
+                }
+            };
+
+            (
+                ltype.name.as_str(),
+                line_style,
+            )
+        }).collect()
+    }
+
+    fn gath_layer_data(&mut self) {
+        self.layer_data = self.drw.layers().map(|lyr| {
+            //let tst = *self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal);
+            (
+                lyr.name.as_str(),
+                StyleData {
+                    //I believe this is more complicated, because it could be As Layer or as blocks or something
+                    //but to quickly test some of the rest of the logic I'll just do this
+                    line_style: self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal).clone(),
+
+
+                    //the Header line weight is a i16, need to figure out how this converts
+                    //using default for now to test color and style
+                    line_weight: style::LineWeight::Normal,
+                    
+                    //unsure if the "color" in the layer is line or fill. I'll assume it's line for now and leave this as default
+                    fill_color: QETColor::from(HexColor::default()),
+
+
+                    line_color: QETColor::from(aci::color_from_aci(lyr.color.index().unwrap_or(0)).unwrap_or_default()),
+                }
+            )
+        }).collect();
+        /*
+        pub struct Layer {
+        pub name: String,
+        pub handle: Handle,
+        #[doc(hidden)]
+        pub __owner_handle: Handle,
+        pub extension_data_groups: Vec<ExtensionGroup>,
+        pub x_data: Vec<XData>,
+        pub color: Color, -> should be line color in ACI? or is this fill color?
+        pub line_type_name: String, -> should be used to get the line type for the layer...I think this is only usd if the line is set to layer style?
+        pub is_layer_plotted: bool, -> not sure what ths is
+        pub line_weight: LineWeight, -> need this
+        #[doc(hidden)]
+        pub __plot_style_handle: Handle,
+        #[doc(hidden)]
+        pub __material_handle: Handle,
+        pub is_layer_on: bool,
+    }
+     */
+    }
+
+    pub fn build(mut self) -> Description {
         let _from_drw_span = span!(Level::TRACE, "Converting Drawing to Description");
+
+        //dbg!("Layers");
+        /*for lyr in self.drw.layers() {
+            dbg!(lyr);
+        }*/
+
+        //dbg!("Line types");
+        /*for ltype in self.drw.line_types() {
+            dbg!(ltype);
+            //so need to figure out how to convert these various lines types to QET Line types
+            //QET Types are Normal, Dashed, dotted, Dashed and dotted
+            //might need to look at the dash_dot_space_lengths and make a determination on which QET type to use
+            //need to verify that I understand those values first
+
+            //https://www.proficad.com/help/settings/line-styles.htm
+            //so assuming the above is accurate, it's line length, space length (as neg?), and then repeats, any 0 for line length is a dot
+            //so...
+            // if it has 0's and positve numbers use dashed an dotted
+            // if it has 0's and negatives use dotted
+            // if it has positives and negatives but no 0 use dashed
+            // and empty array is solid?
+        }*/
+
+        self.gath_line_styles();
+        //dbg!(self.line_styles);
+        self.gath_layer_data();
+
+        //so I'm thinking I can use the line types and layer information to get a hashmap (or something) of styles that
+        //the iteration below over entities can use to create there types?
 
         Description {
             objects: self
                 .drw
                 .entities()
-                .filter_map(|ent| if let EntityType::Insert(ins) = &ent.specific {
-                    let block = find_block(self.drw, &ins.name)?;
-                    let blocks: Vec<&Block> = self.drw.blocks().collect();
-                    trace!(
-                        "Creating Group from block {}. Pos(x:{}, y:{}). Scale(x:{}, y:{})",
-                        ins.name,
-                        ins.location.x,
-                        ins.location.y,
-                        ins.x_scale_factor,
-                        ins.y_scale_factor
-                    );
-                    Some(Objects::Group(
-                        block
-                            .entities
-                            .iter()
-                            .filter_map(|ent| {
-                                let builder = ObjectsBuilder::new(ent)
-                                    .offsets(ins.location.x, ins.location.y)
-                                    .scaling(ins.x_scale_factor, ins.y_scale_factor)
-                                    .blocks(&blocks);
-                                if let Some(spline_step) = self.spline_step {
-                                    builder.spline_step(spline_step).build().ok()
-                                } else {
-                                    builder.build().ok()
-                                }
-                            })
-                            .collect(),
-                    ))
-                } else {
-                    let builder = ObjectsBuilder::new(ent);
-                    if let Some(spline_step) = self.spline_step {
-                        builder.spline_step(spline_step).build().ok()
+                .filter_map(|ent| {
+                    if let EntityType::Insert(ins) = &ent.specific {
+                        let block = find_block(self.drw, &ins.name)?;
+                        let blocks: Vec<&Block> = self.drw.blocks().collect();
+                        trace!(
+                            "Creating Group from block {}. Pos(x:{}, y:{}). Scale(x:{}, y:{})",
+                            ins.name,
+                            ins.location.x,
+                            ins.location.y,
+                            ins.x_scale_factor,
+                            ins.y_scale_factor
+                        );
+                        Some(Objects::Group(
+                            block
+                                .entities
+                                .iter()
+                                .filter_map(|ent| {
+                                    //TODO: Properly handle the line type name not being in the style data
+                                    let builder = ObjectsBuilder::new(ent, self.layer_data.get(ent.common.line_type_name.as_str()).unwrap())
+                                        .offsets(ins.location.x, ins.location.y)
+                                        .scaling(ins.x_scale_factor, ins.y_scale_factor)
+                                        .blocks(&blocks)
+                                        ;
+                                    if let Some(spline_step) = self.spline_step {
+                                        builder.spline_step(spline_step).build().ok()
+                                    } else {
+                                        builder.build().ok()
+                                    }
+                                })
+                                .collect(),
+                        ))
                     } else {
-                        builder.build().ok()
+                        //TODO: Properly handle the line type name not being in the style data
+                        let builder = ObjectsBuilder::new(ent, self.layer_data.get(ent.common.line_type_name.as_str()).unwrap());
+                        if let Some(spline_step) = self.spline_step {
+                            builder.spline_step(spline_step).build().ok()
+                        } else {
+                            builder.build().ok()
+                        }
                     }
                 })
                 .collect(),

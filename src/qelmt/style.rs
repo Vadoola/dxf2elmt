@@ -1,7 +1,7 @@
 use hex_color::HexColor;
 use std::{fmt::Display, str::FromStr};
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) enum LineStyle {
     #[default]
     Normal,
@@ -25,7 +25,7 @@ impl Display for LineStyle {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) enum LineWeight {
     None,
     Thin,
@@ -57,7 +57,7 @@ impl Display for LineWeight {
         )
     }
 }
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct QETColor {
     color: Option<HexColor>,
 }
@@ -2190,7 +2190,7 @@ impl FromStr for QETColor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct StyleData {
     pub line_style: LineStyle,
     pub line_weight: LineWeight,
