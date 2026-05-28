@@ -17,139 +17,180 @@ pub struct Ellipse {
     antialias: bool,
 }
 
-impl From<&Circle> for Ellipse {
-    fn from(circ: &Circle) -> Self {
-        Ellipse {
-            x: circ.center.x - circ.radius,
-            y: -circ.center.y - circ.radius,
-            height: circ.radius * 2.0,
-            width: circ.radius * 2.0,
+enum EllipSource<'a> {
+    Circle(&'a Circle),
+    Ellipse(&'a entities::Ellipse),
+    Polyline(&'a Polyline),
+    LwPolyline(&'a LwPolyline),
+}
 
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
+pub struct EllipBuilder<'a> {
+    source: EllipSource<'a>,
+    style: Option<StyleData>,
+    antialias: bool,
+}
+
+impl<'a> EllipBuilder<'a> {
+    pub fn from_circle(circ: &'a Circle) -> Self {
+        Self {
+            source: EllipSource::Circle(circ),
+            style: None,
             antialias: false,
-            style: if circ.thickness > 0.5 {
-                StyleData::default()
-            } else {
-                StyleData {
-                    line_weight: LineWeight::Thin,
-                    ..Default::default()
+        }
+    }
+
+    pub fn from_ellipse(ellipse: &'a entities::Ellipse) -> Self {
+        Self {
+            source: EllipSource::Ellipse(ellipse),
+            style: None,
+            antialias: false,
+        }
+    }
+
+    pub fn from_polyline(poly: &'a Polyline) -> Self {
+        Self {
+            source: EllipSource::Polyline(poly),
+            style: None,
+            antialias: false,
+        }
+    }
+
+    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Self {
+        Self {
+            source: EllipSource::LwPolyline(poly),
+            style: None,
+            antialias: false,
+        }
+    }
+
+    pub fn style(self, style: StyleData) -> Self {
+        Self {
+            style: Some(style),
+            ..self
+        }
+    }
+
+    pub fn antialias(self, antialias: bool) -> Self {
+        Self {
+            antialias,
+            ..self
+        }
+    }
+
+    pub fn build(self) -> Result<Ellipse, &'static str/*TODO: Need Better Error*/> {
+        Ok(match self.source {
+            EllipSource::Circle(circ) => {
+                Ellipse {
+                    x: circ.center.x - circ.radius,
+                    y: -circ.center.y - circ.radius,
+                    height: circ.radius * 2.0,
+                    width: circ.radius * 2.0,
+
+                    antialias: self.antialias,
+                    style: if circ.thickness > 0.5 {
+                        self.style.unwrap_or_default()
+                    } else {
+                        StyleData {
+                            line_weight: LineWeight::Thin,
+                            ..self.style.unwrap_or_default()
+                        }
+                    },
+                }
+            }
+            EllipSource::Ellipse(ellipse) => {
+                Ellipse {
+                    x: ellipse.center.x - ellipse.major_axis.x,
+                    y: -ellipse.center.y - ellipse.major_axis.x * ellipse.minor_axis_ratio,
+                    height: ellipse.major_axis.x * 2.0,
+                    width: ellipse.major_axis.x * 2.0 * ellipse.minor_axis_ratio,
+
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    },
+                }
+            }
+            EllipSource::Polyline(poly) => {
+                if !poly.is_circular() {
+                    return Err("Polyline has poor circularity, can't convert");
+                }
+
+                //I did this fold because min requires the vertex to have the Ordering trait
+                //but I forogot min_by exists taking a lambda, so I could compare them using
+                //the value I need. However my first quick attempt wasn't working
+                //Using min_by would probably be more effecietn than the fold
+                //So this is probably worth coming back to...but it's a low priority
+                //because the below code works.
+                let x = poly
+                    .vertices()
+                    .fold(f64::MAX, |min_x, vtx| min_x.min(vtx.location.x));
+
+                let max_x = poly
+                    .vertices()
+                    .fold(f64::MIN, |max_x, vtx| max_x.max(vtx.location.x));
+
+                let y = poly
+                    .vertices()
+                    .fold(f64::MAX, |min_y, vtx| min_y.min(vtx.location.y));
+
+                let max_y = poly
+                    .vertices()
+                    .fold(f64::MIN, |max_y, vtx| max_y.max(vtx.location.y));
+
+                Ellipse {
+                    x,
+                    y: -max_y,
+                    height: max_y - y,
+                    width: max_x - x,
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    },
+                }
+            }
+            EllipSource::LwPolyline(lwpoly) => {
+                if !lwpoly.is_circular() {
+                    return Err("Polyline has poor circularity, can't convert");
+                }
+
+                let x = lwpoly
+                    .vertices
+                    .iter()
+                    .fold(f64::MAX, |min_x, vtx| min_x.min(vtx.x));
+
+                let max_x = lwpoly
+                    .vertices
+                    .iter()
+                    .fold(f64::MIN, |max_x, vtx| max_x.max(vtx.x));
+
+                let y = lwpoly
+                    .vertices
+                    .iter()
+                    .fold(f64::MAX, |min_y, vtx| min_y.min(vtx.y));
+
+                let max_y = lwpoly
+                    .vertices
+                    .iter()
+                    .fold(f64::MIN, |max_y, vtx| max_y.max(vtx.y));
+
+                Ellipse {
+                    x,
+                    y: -max_y,
+                    height: max_y - y,
+                    width: max_x - x,
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    },
                 }
             },
-        }
-    }
-}
-
-impl From<&entities::Ellipse> for Ellipse {
-    fn from(ellipse: &entities::Ellipse) -> Self {
-        Ellipse {
-            x: ellipse.center.x - ellipse.major_axis.x,
-            y: -ellipse.center.y - ellipse.major_axis.x * ellipse.minor_axis_ratio,
-            height: ellipse.major_axis.x * 2.0,
-            width: ellipse.major_axis.x * 2.0 * ellipse.minor_axis_ratio,
-
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: StyleData {
-                line_weight: LineWeight::Thin,
-                ..Default::default()
-            },
-        }
-    }
-}
-
-impl TryFrom<&Polyline> for Ellipse {
-    type Error = &'static str; //add better error later
-
-    fn try_from(poly: &Polyline) -> Result<Self, Self::Error> {
-        if !poly.is_circular() {
-            return Err("Polyline has poor circularity, can't convert");
-        }
-
-        //I did this fold because min requires the vertex to have the Ordering trait
-        //but I forogot min_by exists taking a lambda, so I could compare them using
-        //the value I need. However my first quick attempt wasn't working
-        //Using min_by would probably be more effecietn than the fold
-        //So this is probably worth coming back to...but it's a low priority
-        //because the below code works.
-        let x = poly
-            .vertices()
-            .fold(f64::MAX, |min_x, vtx| min_x.min(vtx.location.x));
-
-        let max_x = poly
-            .vertices()
-            .fold(f64::MIN, |max_x, vtx| max_x.max(vtx.location.x));
-
-        let y = poly
-            .vertices()
-            .fold(f64::MAX, |min_y, vtx| min_y.min(vtx.location.y));
-
-        let max_y = poly
-            .vertices()
-            .fold(f64::MIN, |max_y, vtx| max_y.max(vtx.location.y));
-
-        Ok(Ellipse {
-            x,
-            y: -max_y,
-            height: max_y - y,
-            width: max_x - x,
-
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: StyleData {
-                line_weight: LineWeight::Thin,
-                ..Default::default()
-            },
         })
     }
 }
 
-impl TryFrom<&LwPolyline> for Ellipse {
-    type Error = &'static str; //add better error later
-
-    fn try_from(poly: &LwPolyline) -> Result<Self, Self::Error> {
-        if !poly.is_circular() {
-            return Err("Polyline has poor circularity, can't convert");
-        }
-
-        let x = poly
-            .vertices
-            .iter()
-            .fold(f64::MAX, |min_x, vtx| min_x.min(vtx.x));
-
-        let max_x = poly
-            .vertices
-            .iter()
-            .fold(f64::MIN, |max_x, vtx| max_x.max(vtx.x));
-
-        let y = poly
-            .vertices
-            .iter()
-            .fold(f64::MAX, |min_y, vtx| min_y.min(vtx.y));
-
-        let max_y = poly
-            .vertices
-            .iter()
-            .fold(f64::MIN, |max_y, vtx| max_y.max(vtx.y));
-
-        Ok(Ellipse {
-            x,
-            y: -max_y,
-            height: max_y - y,
-            width: max_x - x,
-
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: StyleData {
-                line_weight: LineWeight::Thin,
-                ..Default::default()
-            },
-        })
-    }
-}
 
 impl From<&Ellipse> for XMLElement {
     fn from(ell: &Ellipse) -> Self {

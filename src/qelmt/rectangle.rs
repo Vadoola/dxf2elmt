@@ -20,50 +20,88 @@ pub struct Rectangle {
     antialias: bool,
 }
 
-impl TryFrom<&Polyline> for Rectangle {
-    type Error = &'static str; //add better error type later
-
-    fn try_from(poly: &Polyline) -> Result<Self, Self::Error> {
-        if !poly.is_rectangular() {
-            return Err("Polyline does not appear to be rectangular, can't convert");
-        }
-
-        Ok(Rectangle {
-            x: poly.left_bound(),
-            y: -poly.top_bound(),
-            height: (poly.bot_bound() - poly.top_bound()).abs(),
-            width: (poly.right_bound() - poly.left_bound()).abs(),
-            rx: 0.0,
-            ry: 0.0,
-            antialias: false,
-            style: StyleData {
-                line_weight: LineWeight::Thin,
-                ..Default::default()
-            },
-        })
-    }
+enum RectSource<'a> {
+    Polyline(&'a Polyline),
+    LwPolyline(&'a LwPolyline),
 }
 
-impl TryFrom<&LwPolyline> for Rectangle {
-    type Error = &'static str; //add better error type later
+pub struct RectBuilder<'a> {
+    source: RectSource<'a>,
+    style: Option<StyleData>,
+    antialias: bool,
+}
 
-    fn try_from(poly: &LwPolyline) -> Result<Self, Self::Error> {
-        if !poly.is_rectangular() {
-            return Err("LwPolyline does not appear to be rectangular, can't convert");
-        }
-
-        Ok(Rectangle {
-            x: poly.left_bound(),
-            y: -poly.top_bound(),
-            height: (poly.bot_bound() - poly.top_bound()).abs(),
-            width: (poly.right_bound() - poly.left_bound()).abs(),
-            rx: 0.0,
-            ry: 0.0,
+impl<'a> RectBuilder<'a> {
+    pub fn from_polyline(poly: &'a Polyline) -> Self {
+        Self {
+            source: RectSource::Polyline(poly),
+            style: None,
             antialias: false,
-            style: StyleData {
-                line_weight: LineWeight::Thin,
-                ..Default::default()
-            },
+        }
+    }
+
+    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Self {
+        Self {
+            source: RectSource::LwPolyline(poly),
+            style: None,
+            antialias: false,
+        }
+    }
+
+    pub fn style(self, style: StyleData) -> Self {
+        Self {
+            style: Some(style),
+            ..self
+        }
+    }
+
+    pub fn antialias(self, antialias: bool) -> Self {
+        Self {
+            antialias,
+            ..self
+        }
+    }
+
+    pub fn build(self) -> Result<Rectangle, &'static str /*TODO: add better error type later*/> {
+        Ok(match self.source {
+            RectSource::Polyline(poly) => {
+                if !poly.is_rectangular() {
+                    return Err("Polyline does not appear to be rectangular, can't convert");
+                }
+
+                Rectangle {
+                    x: poly.left_bound(),
+                    y: -poly.top_bound(),
+                    height: (poly.bot_bound() - poly.top_bound()).abs(),
+                    width: (poly.right_bound() - poly.left_bound()).abs(),
+                    rx: 0.0,
+                    ry: 0.0,
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    },
+                }
+            }
+            RectSource::LwPolyline(lwpoly) => {
+                if !lwpoly.is_rectangular() {
+                    return Err("LwPolyline does not appear to be rectangular, can't convert");
+                }
+
+                Rectangle {
+                    x: lwpoly.left_bound(),
+                    y: -lwpoly.top_bound(),
+                    height: (lwpoly.bot_bound() - lwpoly.top_bound()).abs(),
+                    width: (lwpoly.right_bound() - lwpoly.left_bound()).abs(),
+                    rx: 0.0,
+                    ry: 0.0,
+                    antialias: self.antialias,
+                    style: StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    },
+                }
+            }
         })
     }
 }

@@ -61,11 +61,12 @@ enum PolySource<'a> {
     Polyline(&'a Polyline),
     LwPolyline(&'a LwPolyline),
     Spline(&'a Spline),
+    Solid(&'a Solid),
 }
 
 pub struct PolyBuilder<'a> {
     source: PolySource<'a>,
-    style: StyleData,
+    style: Option<StyleData>,
     spline_step: Option<f64>,
     antialias: bool,
 }
@@ -75,7 +76,7 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::Polyline(poly),
             spline_step: None,
-            style: StyleData::default(),
+            style: None,
             antialias: false,
         }
     }
@@ -84,7 +85,7 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::LwPolyline(lwpoly),
             spline_step: None,
-            style: StyleData::default(),
+            style: None,
             antialias: false,
         }
     }
@@ -93,7 +94,16 @@ impl<'a> PolyBuilder<'a> {
         Self {
             source: PolySource::Spline(spline),
             spline_step: None,
-            style: StyleData::default(),
+            style: None,
+            antialias: false,
+        }
+    }
+
+    pub fn from_solid(solid: &'a Solid) -> Self {
+        Self {
+            source: PolySource::Solid(solid),
+            spline_step: None,
+            style: None,
             antialias: false,
         }
     }
@@ -107,7 +117,7 @@ impl<'a> PolyBuilder<'a> {
 
     pub fn style(self, style: StyleData) -> Self {
         Self {
-            style,
+            style: Some(style),
             ..self
         }
     }
@@ -231,6 +241,38 @@ impl<'a> PolyBuilder<'a> {
                     },
                 }
             }
+            PolySource::Solid(solid) => {
+                Polygon {
+                    coordinates: vec![
+                        Coordinate {
+                            x: solid.first_corner.x,
+                            y: -solid.first_corner.y,
+                        },
+                        Coordinate {
+                            x: solid.second_corner.x,
+                            y: -solid.second_corner.y,
+                        },
+                        Coordinate {
+                            x: solid.third_corner.x,
+                            y: -solid.third_corner.y,
+                        },
+                        Coordinate {
+                            x: solid.fourth_corner.x,
+                            y: -solid.fourth_corner.y,
+                        },
+                    ],
+                    closed: true,
+                    antialias: self.antialias,
+                    style: if solid.thickness > 0.5 {
+                        self.style.unwrap_or_default()
+                    } else {
+                        StyleData {
+                            line_weight: LineWeight::Thin,
+                            ..self.style.unwrap_or_default()
+                        }
+                    },
+                }
+            }
         }
     }
 }
@@ -257,43 +299,6 @@ fn bspline_from_spline(spline: &Spline) -> bspline::BSpline<Point, f64> {
         points,
         knots,
     )
-}
-
-impl From<&Solid> for Polygon {
-    fn from(solid: &Solid) -> Self {
-        Polygon {
-            coordinates: vec![
-                Coordinate {
-                    x: solid.first_corner.x,
-                    y: -solid.first_corner.y,
-                },
-                Coordinate {
-                    x: solid.second_corner.x,
-                    y: -solid.second_corner.y,
-                },
-                Coordinate {
-                    x: solid.third_corner.x,
-                    y: -solid.third_corner.y,
-                },
-                Coordinate {
-                    x: solid.fourth_corner.x,
-                    y: -solid.fourth_corner.y,
-                },
-            ],
-            closed: true,
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
-            style: if solid.thickness > 0.5 {
-                StyleData::default()
-            } else {
-                StyleData {
-                    line_weight: LineWeight::Thin,
-                    ..Default::default()
-                }
-            },
-        }
-    }
 }
 
 impl From<&Polygon> for XMLElement {

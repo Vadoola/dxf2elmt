@@ -24,6 +24,7 @@ pub struct Arc {
 pub struct ArcBuilder<'a> {
     arc: &'a entities::Arc,
     style: Option<StyleData>,
+    antialias: bool
 }
 
 impl<'a> ArcBuilder<'a> {
@@ -31,12 +32,20 @@ impl<'a> ArcBuilder<'a> {
         Self {
             arc,
             style: None,
+            antialias: false,
         }
     }
 
     pub fn style(self, style: StyleData) -> Self {
         Self {
             style: Some(style),
+            ..self
+        }
+    }
+
+    pub fn antialias(self, antialias: bool) -> Self {
+        Self {
+            antialias,
             ..self
         }
     }
@@ -65,9 +74,7 @@ impl<'a> ArcBuilder<'a> {
                 temp_angle
             },
 
-            //in the original code antialias is always set to false...I'm guessing for performance
-            //reasons...I'm trying to think if there is a time we might want to turn it on?
-            antialias: false,
+            antialias: self.antialias,
 
             //I might want to update these defaults, no sure, but I'm leaving the values
             //the same as how Antonioaja had it and how it's been, but using the new
