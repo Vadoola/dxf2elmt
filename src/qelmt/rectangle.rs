@@ -32,20 +32,28 @@ pub struct RectBuilder<'a> {
 }
 
 impl<'a> RectBuilder<'a> {
-    pub fn from_polyline(poly: &'a Polyline) -> Self {
-        Self {
+    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str /*TODO: add better error type later*/> {
+        if !poly.is_rectangular() {
+            return Err("Polyline does not appear to be rectangular, can't convert");
+        }
+
+        Ok(Self {
             source: RectSource::Polyline(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Self {
-        Self {
+    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str /*TODO: add better error type later*/> {
+        if !poly.is_rectangular() {
+            return Err("LwPolyline does not appear to be rectangular, can't convert");
+        }
+        
+        Ok(Self {
             source: RectSource::LwPolyline(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
     pub fn style(self, style: StyleData) -> Self {
@@ -62,13 +70,9 @@ impl<'a> RectBuilder<'a> {
         }
     }
 
-    pub fn build(self) -> Result<Rectangle, &'static str /*TODO: add better error type later*/> {
-        Ok(match self.source {
+    pub fn build(self) -> Rectangle {
+        match self.source {
             RectSource::Polyline(poly) => {
-                if !poly.is_rectangular() {
-                    return Err("Polyline does not appear to be rectangular, can't convert");
-                }
-
                 Rectangle {
                     x: poly.left_bound(),
                     y: -poly.top_bound(),
@@ -84,10 +88,6 @@ impl<'a> RectBuilder<'a> {
                 }
             }
             RectSource::LwPolyline(lwpoly) => {
-                if !lwpoly.is_rectangular() {
-                    return Err("LwPolyline does not appear to be rectangular, can't convert");
-                }
-
                 Rectangle {
                     x: lwpoly.left_bound(),
                     y: -lwpoly.top_bound(),
@@ -102,7 +102,7 @@ impl<'a> RectBuilder<'a> {
                     },
                 }
             }
-        })
+        }
     }
 }
 

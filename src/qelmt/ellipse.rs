@@ -47,20 +47,28 @@ impl<'a> EllipBuilder<'a> {
         }
     }
 
-    pub fn from_polyline(poly: &'a Polyline) -> Self {
-        Self {
+    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+        if !poly.is_circular() {
+            return Err("Polyline has poor circularity, can't convert");
+        }
+        
+        Ok(Self {
             source: EllipSource::Polyline(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Self {
-        Self {
+    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+        if !poly.is_circular() {
+            return Err("Polyline has poor circularity, can't convert");
+        }
+
+        Ok(Self {
             source: EllipSource::LwPolyline(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
     pub fn style(self, style: StyleData) -> Self {
@@ -77,8 +85,8 @@ impl<'a> EllipBuilder<'a> {
         }
     }
 
-    pub fn build(self) -> Result<Ellipse, &'static str/*TODO: Need Better Error*/> {
-        Ok(match self.source {
+    pub fn build(self) -> Ellipse {
+        match self.source {
             EllipSource::Circle(circ) => {
                 Ellipse {
                     x: circ.center.x - circ.radius,
@@ -112,10 +120,6 @@ impl<'a> EllipBuilder<'a> {
                 }
             }
             EllipSource::Polyline(poly) => {
-                if !poly.is_circular() {
-                    return Err("Polyline has poor circularity, can't convert");
-                }
-
                 //I did this fold because min requires the vertex to have the Ordering trait
                 //but I forogot min_by exists taking a lambda, so I could compare them using
                 //the value I need. However my first quick attempt wasn't working
@@ -151,10 +155,6 @@ impl<'a> EllipBuilder<'a> {
                 }
             }
             EllipSource::LwPolyline(lwpoly) => {
-                if !lwpoly.is_circular() {
-                    return Err("Polyline has poor circularity, can't convert");
-                }
-
                 let x = lwpoly
                     .vertices
                     .iter()
@@ -187,7 +187,7 @@ impl<'a> EllipBuilder<'a> {
                     },
                 }
             },
-        })
+        }
     }
 }
 

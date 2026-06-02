@@ -46,20 +46,27 @@ impl<'a> LineBuilder<'a> {
         }
     }
 
-    pub fn from_polyline(poly: &'a Polyline) -> Self {
-        Self {
+    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+        if poly.__vertices_and_handles.len() != 2 {
+            return Err("Error can't convert polyline with more than 2 points into a Line");
+        }
+        Ok(Self {
             source: LineSource::PolyLine(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Self {
-        Self {
+    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+        if poly.vertices.len() != 2 {
+            return Err("Error can't convert polyline with more than 2 points into a Line");
+        }
+
+        Ok(Self {
             source: LineSource::LwPolyLine(poly),
             style: None,
             antialias: false,
-        }
+        })
     }
 
     pub fn style(self, style: StyleData) -> Self {
@@ -73,8 +80,8 @@ impl<'a> LineBuilder<'a> {
         Self { antialias, ..self }
     }
 
-    pub fn build(self) -> Result<Line, &'static str/*TODO: Need Better Error*/> {
-        Ok(match self.source {
+    pub fn build(self) -> Line {
+        match self.source {
             LineSource::Line(line) => {
                 Line {
                     x1: line.p1.x,
@@ -97,10 +104,6 @@ impl<'a> LineBuilder<'a> {
                 }
             }
             LineSource::PolyLine(poly) => {
-                if poly.__vertices_and_handles.len() != 2 {
-                    return Err("Error can't convert polyline with more than 2 points into a Line");
-                }
-
                 Line {
                     x1: poly.__vertices_and_handles[0].0.location.x,
                     y1: -poly.__vertices_and_handles[0].0.location.y,
@@ -122,10 +125,6 @@ impl<'a> LineBuilder<'a> {
                 }
             }
             LineSource::LwPolyLine(lw_poly) => {
-                if lw_poly.vertices.len() != 2 {
-                    return Err("Error can't convert polyline with more than 2 points into a Line");
-                }
-
                 Line {
                     x1: lw_poly.vertices[0].x,
                     y1: -lw_poly.vertices[0].y,
@@ -146,7 +145,7 @@ impl<'a> LineBuilder<'a> {
                     },
                 }
             }
-        })
+        }
     }
 }
 

@@ -143,11 +143,11 @@ impl<'a> PolyBuilder<'a> {
                     //reasons...I'm trying to think if there is a time we might want to turn it on?
                     antialias: self.antialias,
                     style: if polyline.thickness > 0.1 {
-                        self.style
+                        self.style.unwrap_or_default()
                     } else {
                         StyleData {
                             line_weight: LineWeight::Thin,
-                            ..self.style
+                            ..self.style.unwrap_or_default()
                         }
                     },
                 }
@@ -167,11 +167,11 @@ impl<'a> PolyBuilder<'a> {
                     //reasons...I'm trying to think if there is a time we might want to turn it on?
                     antialias: self.antialias,
                     style: if lw_polyline.thickness > 0.1 {
-                        self.style
+                        self.style.unwrap_or_default()
                     } else {
                         StyleData {
                             line_weight: LineWeight::Thin,
-                            ..self.style
+                            ..self.style.unwrap_or_default()
                         }
                     },
                 }
@@ -237,7 +237,7 @@ impl<'a> PolyBuilder<'a> {
                     antialias: self.antialias,
                     style: StyleData {
                         line_weight: LineWeight::Thin,
-                        ..self.style
+                        ..self.style.unwrap_or_default()
                     },
                 }
             }

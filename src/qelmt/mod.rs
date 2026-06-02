@@ -13,7 +13,7 @@ use std::f64::consts::PI;
 use std::fmt::Display;
 use uuid::Uuid;
 
-use tracing::{Level, error, info, span, trace};
+use tracing::{error, info, span, trace, Level};
 
 pub mod aci;
 //pub use aci::??;
@@ -40,6 +40,8 @@ pub mod rectangle;
 pub use rectangle::Rectangle;
 
 use crate::qelmt::arc::ArcBuilder;
+use crate::qelmt::ellipse::EllipBuilder;
+use crate::qelmt::line::LineBuilder;
 use crate::qelmt::polygon::PolyBuilder;
 use crate::qelmt::style::{LineStyle, QETColor, StyleData};
 
@@ -690,6 +692,7 @@ pub struct ObjectsBuilder<'a> {
     offset: Offset,
     scale_fact: ScaleFactor,
     style: Option<StyleData>,
+    antialias: bool,
 }
 
 impl<'a> ObjectsBuilder<'a> {
@@ -701,6 +704,7 @@ impl<'a> ObjectsBuilder<'a> {
             offset: Offset::default(),
             scale_fact: ScaleFactor::default(),
             style: None,
+            antialias: false,
         }
     }
 
@@ -739,6 +743,10 @@ impl<'a> ObjectsBuilder<'a> {
         }
     }
 
+    pub fn antialias(self, antialias: bool) -> Self {
+        Self { antialias, ..self }
+    }
+
     #[allow(clippy::too_many_lines)]
     pub fn build(self) -> Result<Objects, &'static str /*add better error later*/> {
         dbg!(&self.ent.common.color);
@@ -750,16 +758,24 @@ impl<'a> ObjectsBuilder<'a> {
         dbg!(&self.ent.common.layer);
         match &self.ent.specific {
             EntityType::Circle(circle) => {
-                let mut ellipse: Ellipse = circle.into();
+                let mut ebuilder = EllipBuilder::from_circle(circle).antialias(self.antialias);
+                if let Some(sty) = self.style {
+                    ebuilder = ebuilder.style(sty);
+                }
 
+                let mut ellipse = ebuilder.build();
                 ellipse.scale(self.scale_fact.x, self.scale_fact.y);
                 ellipse.x += self.offset.x;
                 ellipse.y -= self.offset.y;
                 Ok(Objects::Ellipse(ellipse))
             }
             EntityType::Line(line) => {
-                let mut line: Line = line.into();
+                let mut lbuilder = LineBuilder::from_line(line);
+                if let Some(sty) = self.style {
+                    lbuilder = lbuilder.style(sty);
+                }
 
+                let mut line = lbuilder.build();
                 line.scale(self.scale_fact.x, self.scale_fact.y);
 
                 line.x1 += self.offset.x;
@@ -844,8 +860,12 @@ impl<'a> ObjectsBuilder<'a> {
                 )
             }
             EntityType::Ellipse(ellipse) => {
-                let mut ellipse: Ellipse = ellipse.into();
+                let mut elbuilder = EllipBuilder::from_ellipse(ellipse);
+                if let Some(sty) = self.style {
+                    elbuilder = elbuilder.style(sty);
+                }
 
+                let mut ellipse = elbuilder.build();
                 ellipse.scale(self.scale_fact.x, self.scale_fact.y);
                 ellipse.x += self.offset.x;
                 ellipse.y -= self.offset.y;
@@ -885,8 +905,12 @@ impl<'a> ObjectsBuilder<'a> {
             EntityType::Polyline(polyline) => match polyline.__vertices_and_handles.len() {
                 0 | 1 => Err("Error empty Polyline"),
                 2 => {
-                    let mut line = Line::try_from(polyline)?;
+                    let mut lbuilder = LineBuilder::from_polyline(polyline)?;
+                    if let Some(sty) = self.style {
+                        lbuilder = lbuilder.style(sty);
+                    }
 
+                    let mut line = lbuilder.build();
                     line.scale(self.scale_fact.x, self.scale_fact.x);
 
                     line.x1 += self.offset.x;
@@ -997,7 +1021,8 @@ impl<'a> ObjectsBuilder<'a> {
                 };
                 trace!(
                     "Base Point: x: {} / y: {}",
-                    block.base_point.x, block.base_point.y
+                    block.base_point.x,
+                    block.base_point.y
                 );
 
                 trace!(
@@ -1026,7 +1051,7 @@ impl<'a> ObjectsBuilder<'a> {
                                     self.scale_fact.y * ins.y_scale_factor,
                                 )
                                 .blocks(self.blocks);
-                            
+
                             if let Some(spline_step) = self.spline_step {
                                 obuilder = obuilder.spline_step(spline_step);
                             }
@@ -1211,7 +1236,7 @@ pub struct DescBuilder<'a> {
     drw: &'a Drawing,
     spline_step: Option<f64>,
     line_styles: HashMap<&'a str, LineStyle>,
-    layer_data: HashMap<&'a str, StyleData>
+    layer_data: HashMap<&'a str, StyleData>,
 }
 
 impl<'a> DescBuilder<'a> {
@@ -1232,80 +1257,89 @@ impl<'a> DescBuilder<'a> {
     }
 
     fn gath_line_styles(&mut self) {
-        self.line_styles = self.drw.line_types().map(|ltype| {
-            //should this be returning a HashMap instead of a Vec? with the Name as the key?
-            let line_style = {
-                if ltype.element_count == 0 {
-                    //if there is no dot dash info it's a solid line
-                    LineStyle::Normal
-                } else {
-                    if ltype.dash_dot_space_lengths.contains(&0.0)
-                        && ltype.dash_dot_space_lengths.iter().any(|f| *f >= 0.0)
-                    {
-                        //negativ values are spaces (number value equals size of space)
-                        //0 values are dots
-                        //positive values are dashes (number value equals size of dash)
-                        //since QET doesn't allow me to specifiy dash or space sizing, it's if it's a mix of 0's and positive values use DotDash
-                        LineStyle::DotDash
-                    } else if ltype.dash_dot_space_lengths.contains(&0.0) {
-                        //if it contains 0.0's and didn't contain values > 0 then it's dotted only
-                        LineStyle::Dotted
+        self.line_styles = self
+            .drw
+            .line_types()
+            .map(|ltype| {
+                //should this be returning a HashMap instead of a Vec? with the Name as the key?
+                let line_style = {
+                    if ltype.element_count == 0 {
+                        //if there is no dot dash info it's a solid line
+                        LineStyle::Normal
                     } else {
-                        //else it contains positives and negatives but no 0's
-                        LineStyle::Dashed
+                        if ltype.dash_dot_space_lengths.contains(&0.0)
+                            && ltype.dash_dot_space_lengths.iter().any(|f| *f >= 0.0)
+                        {
+                            //negativ values are spaces (number value equals size of space)
+                            //0 values are dots
+                            //positive values are dashes (number value equals size of dash)
+                            //since QET doesn't allow me to specifiy dash or space sizing, it's if it's a mix of 0's and positive values use DotDash
+                            LineStyle::DotDash
+                        } else if ltype.dash_dot_space_lengths.contains(&0.0) {
+                            //if it contains 0.0's and didn't contain values > 0 then it's dotted only
+                            LineStyle::Dotted
+                        } else {
+                            //else it contains positives and negatives but no 0's
+                            LineStyle::Dashed
+                        }
                     }
-                }
-            };
+                };
 
-            (
-                ltype.name.as_str(),
-                line_style,
-            )
-        }).collect()
+                (ltype.name.as_str(), line_style)
+            })
+            .collect()
     }
 
     fn gath_layer_data(&mut self) {
-        self.layer_data = self.drw.layers().map(|lyr| {
-            //let tst = *self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal);
-            (
-                lyr.name.as_str(),
-                StyleData {
-                    //I believe this is more complicated, because it could be As Layer or as blocks or something
-                    //but to quickly test some of the rest of the logic I'll just do this
-                    line_style: self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal).clone(),
+        self.layer_data = self
+            .drw
+            .layers()
+            .map(|lyr| {
+                //let tst = *self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal);
+                (
+                    lyr.name.as_str(),
+                    StyleData {
+                        //I believe this is more complicated, because it could be As Layer or as blocks or something
+                        //but to quickly test some of the rest of the logic I'll just do this
+                        line_style: self
+                            .line_styles
+                            .get(lyr.line_type_name.as_str())
+                            .unwrap_or(&LineStyle::Normal)
+                            .clone(),
 
+                        //the Header line weight is a i16, need to figure out how this converts
+                        //using default for now to test color and style
+                        line_weight: style::LineWeight::Normal,
 
-                    //the Header line weight is a i16, need to figure out how this converts
-                    //using default for now to test color and style
-                    line_weight: style::LineWeight::Normal,
-                    
-                    //unsure if the "color" in the layer is line or fill. I'll assume it's line for now and leave this as default
-                    fill_color: QETColor::from(HexColor::default()),
+                        //unsure if the "color" in the layer is line or fill. I'll assume it's line for now and leave this as default
+                        fill_color: QETColor::from(HexColor::default()),
 
-
-                    line_color: QETColor::from(aci::color_from_aci(lyr.color.index().unwrap_or(0)).unwrap_or_default()),
-                }
-            )
-        }).collect();
+                        line_color: QETColor::from(
+                            aci::color_from_aci(lyr.color.index().unwrap_or(0)).unwrap_or_default(),
+                        ),
+                    },
+                )
+            })
+            .collect();
         /*
-        pub struct Layer {
-        pub name: String,
-        pub handle: Handle,
-        #[doc(hidden)]
-        pub __owner_handle: Handle,
-        pub extension_data_groups: Vec<ExtensionGroup>,
-        pub x_data: Vec<XData>,
-        pub color: Color, -> should be line color in ACI? or is this fill color?
-        pub line_type_name: String, -> should be used to get the line type for the layer...I think this is only usd if the line is set to layer style?
-        pub is_layer_plotted: bool, -> not sure what ths is
-        pub line_weight: LineWeight, -> need this
-        #[doc(hidden)]
-        pub __plot_style_handle: Handle,
-        #[doc(hidden)]
-        pub __material_handle: Handle,
-        pub is_layer_on: bool,
-    }
-     */
+            pub struct Layer {
+            pub name: String,
+            pub handle: Handle,
+            #[doc(hidden)]
+            pub __owner_handle: Handle,
+            pub extension_data_groups: Vec<ExtensionGroup>,
+            pub x_data: Vec<XData>,
+            pub color: Color, -> should be line color in ACI? or is this fill color?
+            pub line_type_name: String, -> should be used to get the line type for the layer...I think this is only usd if the line is set to layer style?
+            pub is_layer_plotted: bool, -> not sure what ths is
+            pub line_weight: LineWeight, -> need this
+            #[doc(hidden)]
+            pub __plot_style_handle: Handle,
+            #[doc(hidden)]
+            pub __material_handle: Handle,
+            pub is_layer_on: bool,
+        }
+         */
     }
 
     pub fn build(mut self) -> Description {
@@ -1369,7 +1403,9 @@ impl<'a> DescBuilder<'a> {
                                         builder = builder.spline_step(spline_step);
                                     }
 
-                                    if let Some(sty) = self.layer_data.get(ent.common.line_type_name.as_str()) {
+                                    if let Some(sty) =
+                                        self.layer_data.get(ent.common.line_type_name.as_str())
+                                    {
                                         builder = builder.style(sty.clone());
                                     }
 
