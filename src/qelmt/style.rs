@@ -68,6 +68,12 @@ impl From<HexColor> for QETColor {
     }
 }
 
+impl From<Option<HexColor>> for QETColor {
+    fn from(color: Option<HexColor>) -> Self {
+        Self { color }
+    }
+}
+
 //Perhaps a way to clean this up and make the code smaller since this is all pretty much static is to move the translations
 //into some sort of file like a csv and then use include_bytes or incldue_str to embed it in the exe
 //then maybe have a global oncecell or something that the first time it gets parsed stored in a hashmap that can be re-used.

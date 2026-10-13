@@ -16,13 +16,12 @@ use uuid::Uuid;
 use tracing::{error, info, span, trace, Level};
 
 pub mod aci;
-//pub use aci::??;
 
 pub mod arc;
 pub use arc::Arc;
 
 pub mod line;
-pub use line::{Leader, Line};
+pub use line::Line;
 
 pub mod text;
 pub use text::Text;
@@ -41,12 +40,12 @@ pub use rectangle::Rectangle;
 
 use crate::qelmt::arc::ArcBuilder;
 use crate::qelmt::ellipse::EllipBuilder;
-use crate::qelmt::line::LineBuilder;
+use crate::qelmt::line::{LeaderBuilder, LineBuilder};
 use crate::qelmt::polygon::PolyBuilder;
-use crate::qelmt::style::{LineStyle, QETColor, StyleData};
+use crate::qelmt::rectangle::RectBuilder;
+use crate::qelmt::style::{LineStyle, LineWeight, QETColor, StyleData};
 
 pub mod style;
-//pub use style::StyleData;
 
 fn find_block<'a>(drw: &'a Drawing, name: &str) -> Option<&'a Block> {
     //this is ugly there has to be a cleaner way to filter this....but for my first attempt at pulling the
@@ -493,6 +492,9 @@ pub(crate) enum Objects {
     DynamicText(DynamicText),
     Text(Text),
     Line(Line),
+
+    //Terminal is listed below as a valid object type in an element file, but it's unlikely that it will ever get inserted
+    //when converting from a dxf and the end user will need to detrmine where they want the terminals when creatng the elements
     //Terminal(Terminal),
     Group(Vec<Objects>),
 }
@@ -743,19 +745,19 @@ impl<'a> ObjectsBuilder<'a> {
         }
     }
 
-    pub fn antialias(self, antialias: bool) -> Self {
+    /*pub fn antialias(self, antialias: bool) -> Self {
         Self { antialias, ..self }
-    }
+    }*/
 
     #[allow(clippy::too_many_lines)]
     pub fn build(self) -> Result<Objects, &'static str /*add better error later*/> {
-        dbg!(&self.ent.common.color);
+        /*dbg!(&self.ent.common.color);
         dbg!(&self.ent.common.color_24_bit);
         dbg!(&self.ent.common.color_name);
         dbg!(&self.ent.common.layer);
         dbg!(&self.ent.common.is_visible);
         dbg!(&self.ent.common.line_type_name);
-        dbg!(&self.ent.common.layer);
+        dbg!(&self.ent.common.layer);*/
         match &self.ent.specific {
             EntityType::Circle(circle) => {
                 let mut ebuilder = EllipBuilder::from_circle(circle).antialias(self.antialias);
@@ -770,7 +772,8 @@ impl<'a> ObjectsBuilder<'a> {
                 Ok(Objects::Ellipse(ellipse))
             }
             EntityType::Line(line) => {
-                let mut lbuilder = LineBuilder::from_line(line);
+                let mut lbuilder = LineBuilder::from_line(line).antialias(self.antialias);
+                //dbg!(&self.style);
                 if let Some(sty) = self.style {
                     lbuilder = lbuilder.style(sty);
                 }
@@ -787,7 +790,7 @@ impl<'a> ObjectsBuilder<'a> {
                 Ok(Objects::Line(line))
             }
             EntityType::Arc(arc) => {
-                let mut abuilder = ArcBuilder::new(arc);
+                let mut abuilder = ArcBuilder::new(arc).antialias(self.antialias);
                 if let Some(sty) = self.style {
                     abuilder = abuilder.style(sty);
                 }
@@ -801,7 +804,11 @@ impl<'a> ObjectsBuilder<'a> {
                 Ok(Objects::Arc(arc))
             }
             EntityType::Spline(spline) => {
-                let mut pbuilder = PolyBuilder::from_spline(spline);
+                let mut pbuilder = PolyBuilder::from_spline(spline).antialias(self.antialias);
+                if let Some(sty) = self.style {
+                    pbuilder = pbuilder.style(sty);
+                }
+
                 if let Some(spline_step) = self.spline_step {
                     pbuilder = pbuilder.spline_step(spline_step);
                 }
@@ -860,7 +867,7 @@ impl<'a> ObjectsBuilder<'a> {
                 )
             }
             EntityType::Ellipse(ellipse) => {
-                let mut elbuilder = EllipBuilder::from_ellipse(ellipse);
+                let mut elbuilder = EllipBuilder::from_ellipse(ellipse).antialias(self.antialias);
                 if let Some(sty) = self.style {
                     elbuilder = elbuilder.style(sty);
                 }
@@ -905,7 +912,8 @@ impl<'a> ObjectsBuilder<'a> {
             EntityType::Polyline(polyline) => match polyline.__vertices_and_handles.len() {
                 0 | 1 => Err("Error empty Polyline"),
                 2 => {
-                    let mut lbuilder = LineBuilder::from_polyline(polyline)?;
+                    let mut lbuilder =
+                        LineBuilder::from_polyline(polyline)?.antialias(self.antialias);
                     if let Some(sty) = self.style {
                         lbuilder = lbuilder.style(sty);
                     }
@@ -922,14 +930,26 @@ impl<'a> ObjectsBuilder<'a> {
                     Ok(Objects::Line(line))
                 }
                 _ => {
-                    if let Ok(mut ellipse) = Ellipse::try_from(polyline) {
+                    if let Ok(mut elbuilder) = EllipBuilder::from_polyline(polyline) {
+                        elbuilder = elbuilder.antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            elbuilder = elbuilder.style(sty);
+                        }
+
+                        let mut ellipse = elbuilder.build();
                         ellipse.scale(self.scale_fact.x, self.scale_fact.y);
 
                         ellipse.x += self.offset.x;
                         ellipse.y -= self.offset.y;
 
                         Ok(Objects::Ellipse(ellipse))
-                    } else if let Ok(mut rectangle) = Rectangle::try_from(polyline) {
+                    } else if let Ok(mut rbuilder) = RectBuilder::from_polyline(polyline) {
+                        rbuilder = rbuilder.antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            rbuilder = rbuilder.style(sty);
+                        }
+
+                        let mut rectangle = rbuilder.build();
                         rectangle.scale(self.scale_fact.x, self.scale_fact.y);
 
                         rectangle.x += self.offset.x;
@@ -937,8 +957,13 @@ impl<'a> ObjectsBuilder<'a> {
 
                         Ok(Objects::Rectangle(rectangle))
                     } else {
-                        let mut poly: Polygon = PolyBuilder::from_polyline(polyline).build();
+                        let mut pbuilder =
+                            PolyBuilder::from_polyline(polyline).antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            pbuilder = pbuilder.style(sty);
+                        }
 
+                        let mut poly: Polygon = pbuilder.build();
                         poly.scale(self.scale_fact.x, self.scale_fact.y);
 
                         for cord in &mut poly.coordinates {
@@ -953,8 +978,13 @@ impl<'a> ObjectsBuilder<'a> {
             EntityType::LwPolyline(lwpolyline) => match lwpolyline.vertices.len() {
                 0 | 1 => Err("Error empty LwPolyline"),
                 2 => {
-                    let mut line = Line::try_from(lwpolyline)?;
+                    let mut lbuilder = LineBuilder::from_lwpolyline(lwpolyline)?;
+                    lbuilder = lbuilder.antialias(self.antialias);
+                    if let Some(sty) = self.style {
+                        lbuilder = lbuilder.style(sty);
+                    }
 
+                    let mut line = lbuilder.build();
                     line.scale(self.scale_fact.x, self.scale_fact.y);
 
                     line.x1 += self.offset.x;
@@ -966,20 +996,32 @@ impl<'a> ObjectsBuilder<'a> {
                     Ok(Objects::Line(line))
                 }
                 _ => {
-                    if let Ok(mut ellipse) = Ellipse::try_from(lwpolyline) {
+                    if let Ok(mut elbuilder) = EllipBuilder::from_lwpolyline(lwpolyline) {
+                        elbuilder = elbuilder.antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            elbuilder = elbuilder.style(sty);
+                        }
+
+                        let mut ellipse = elbuilder.build();
                         ellipse.scale(self.scale_fact.x, self.scale_fact.y);
 
                         ellipse.x += self.offset.x;
                         ellipse.y -= self.offset.y;
 
                         Ok(Objects::Ellipse(ellipse))
-                    } else if let Ok(mut rectangle) = Rectangle::try_from(lwpolyline) {
+                    } else if let Ok(mut rbuilder) = RectBuilder::from_lwpolyline(lwpolyline) {
                         // Hmm there still seem to be some issues here.
                         // I have a few examples with a polyline that is a perfect
                         // rectangle, but it's not a "closed" polyline, and has 5 points.
                         // it's getting converted as a 5 point polygon, not a rectangle.
                         // need to dig into why...is the extra point instead of being a closed
                         // polygon throwing off the area calculation? That would be my guess
+                        rbuilder = rbuilder.antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            rbuilder = rbuilder.style(sty);
+                        }
+
+                        let mut rectangle = rbuilder.build();
                         rectangle.scale(self.scale_fact.x, self.scale_fact.y);
 
                         rectangle.x += self.offset.x;
@@ -987,8 +1029,13 @@ impl<'a> ObjectsBuilder<'a> {
 
                         Ok(Objects::Rectangle(rectangle))
                     } else {
-                        let mut poly: Polygon = PolyBuilder::from_lwpolyline(lwpolyline).build();
+                        let mut pbuilder =
+                            PolyBuilder::from_lwpolyline(lwpolyline).antialias(self.antialias);
+                        if let Some(sty) = self.style {
+                            pbuilder = pbuilder.style(sty);
+                        }
 
+                        let mut poly: Polygon = pbuilder.build();
                         poly.scale(self.scale_fact.x, self.scale_fact.y);
 
                         for cord in &mut poly.coordinates {
@@ -1001,8 +1048,13 @@ impl<'a> ObjectsBuilder<'a> {
                 }
             },
             EntityType::Solid(solid) => {
-                let mut poly: Polygon = solid.into();
+                //let mut poly: Polygon = solid.into();
+                let mut pbuilder = PolyBuilder::from_solid(solid).antialias(self.antialias);
+                if let Some(sty) = self.style {
+                    pbuilder = pbuilder.style(sty);
+                }
 
+                let mut poly = pbuilder.build();
                 poly.scale(self.scale_fact.x, self.scale_fact.y);
 
                 for cord in &mut poly.coordinates {
@@ -1066,8 +1118,12 @@ impl<'a> ObjectsBuilder<'a> {
                 ))
             }
             EntityType::Leader(leader) => {
-                let ld: Leader = leader.into();
+                let mut ldbuilder = LeaderBuilder::new(leader);
+                if let Some(sty) = self.style {
+                    ldbuilder = ldbuilder.style(sty);
+                }
 
+                let ld = ldbuilder.antialias(self.antialias).build();
                 Ok(Objects::Group(
                     ld.0.into_iter()
                         .map(|mut ln| {
@@ -1261,33 +1317,32 @@ impl<'a> DescBuilder<'a> {
             .drw
             .line_types()
             .map(|ltype| {
-                //should this be returning a HashMap instead of a Vec? with the Name as the key?
+                //dbg!(&ltype);
                 let line_style = {
                     if ltype.element_count == 0 {
                         //if there is no dot dash info it's a solid line
                         LineStyle::Normal
+                    } else if ltype.dash_dot_space_lengths.contains(&0.0)
+                        && ltype.dash_dot_space_lengths.iter().any(|f| *f >= 0.0)
+                    {
+                        //negativ values are spaces (number value equals size of space)
+                        //0 values are dots
+                        //positive values are dashes (number value equals size of dash)
+                        //since QET doesn't allow me to specifiy dash or space sizing, it's if it's a mix of 0's and positive values use DotDash
+                        LineStyle::DotDash
+                    } else if ltype.dash_dot_space_lengths.contains(&0.0) {
+                        //if it contains 0.0's and didn't contain values > 0 then it's dotted only
+                        LineStyle::Dotted
                     } else {
-                        if ltype.dash_dot_space_lengths.contains(&0.0)
-                            && ltype.dash_dot_space_lengths.iter().any(|f| *f >= 0.0)
-                        {
-                            //negativ values are spaces (number value equals size of space)
-                            //0 values are dots
-                            //positive values are dashes (number value equals size of dash)
-                            //since QET doesn't allow me to specifiy dash or space sizing, it's if it's a mix of 0's and positive values use DotDash
-                            LineStyle::DotDash
-                        } else if ltype.dash_dot_space_lengths.contains(&0.0) {
-                            //if it contains 0.0's and didn't contain values > 0 then it's dotted only
-                            LineStyle::Dotted
-                        } else {
-                            //else it contains positives and negatives but no 0's
-                            LineStyle::Dashed
-                        }
+                        //else it contains positives and negatives but no 0's
+                        LineStyle::Dashed
                     }
                 };
 
                 (ltype.name.as_str(), line_style)
             })
-            .collect()
+            .collect();
+        //dbg!(&self.line_styles);
     }
 
     fn gath_layer_data(&mut self) {
@@ -1296,6 +1351,8 @@ impl<'a> DescBuilder<'a> {
             .layers()
             .map(|lyr| {
                 //let tst = *self.line_styles.get(lyr.line_type_name.as_str()).unwrap_or(&LineStyle::Normal);
+                //dbg!(&lyr.name);
+                //dbg!(&lyr.line_type_name);
                 (
                     lyr.name.as_str(),
                     StyleData {
@@ -1419,9 +1476,67 @@ impl<'a> DescBuilder<'a> {
                             builder = builder.spline_step(spline_step);
                         }
 
+                        //dbg!(&ent.common.line_type_name);
+                        /*dbg!(ent.common.line_type_name.as_str());
                         if let Some(sty) = self.layer_data.get(ent.common.line_type_name.as_str()) {
-                            builder = builder.style(sty.clone());
-                        }
+                        }*/
+
+                        //dbg!(&sty);
+                        let line_style = if ent.common.line_type_name == "BYLAYER" {
+                            if let Some(style) = self.layer_data.get(ent.common.layer.as_str()) {
+                                style.line_style.clone()
+                            } else {
+                                LineStyle::default()
+                            }
+                        } else if ent.common.line_type_name == "BYBLOCK" {
+                            //TODO: Get the proper line style data
+                            dbg!("By block");
+                            LineStyle::default()
+                        } else {
+                            //dbg!(&ent.common.line_type_name);
+                            if let Some(lsty) =
+                                self.line_styles.get(ent.common.line_type_name.as_str())
+                            {
+                                dbg!(&lsty);
+                                lsty.clone()
+                            } else {
+                                LineStyle::default()
+                            }
+                        };
+
+                        //if it's by block the style should already have the color as set by the group
+                        //when creating the builder
+                        let line_color = /*if ent.common.color.is_by_block() {
+                            dbg!("By Block");
+                            QETColor::default()
+                        } else */if ent.common.color.is_by_layer() {
+                            //dbg!("Color by layer");
+                            if let Some(lsty) = self.layer_data.get(ent.common.layer.as_str()) {
+                                //dbg!(&lsty.line_color);
+                                lsty.line_color.clone()
+                            } else {
+                                QETColor::default()
+                            }
+                        } else if ent.common.color.is_by_entity() {
+                            //not sure what ths is at the moment
+                            QETColor::default()
+                        } else if ent.common.color.is_index() {
+                            if let Some(cidx) = ent.common.color.index() {
+                                QETColor::from(aci::color_from_aci(cidx))
+                            } else {
+                                QETColor::default()
+                            }
+                        } else {
+                            QETColor::default()
+                        };
+                        //dbg!(&line_color);
+
+                        builder = builder.style(StyleData {
+                            line_style,
+                            line_color,
+                            fill_color: QETColor::default(),
+                            line_weight: LineWeight::default(), //ent.common.lineweight_enum_value,
+                        });
 
                         builder.build().ok()
                     }
@@ -1476,8 +1591,9 @@ impl From<&ElmtUuid> for XMLElement {
 
 //I need to check what these other item types are used for. I think it's unlikely
 //I'll ever need for this tool, so it might be worth just hard coding the "element"
-//string when writing out the XML, but for now I'll just comment out the other enum
-//variants to suppress the clippy warnings.
+//string when writing out the XML. It's possible some of other Element related items
+//like ElementCollection and ElementContainer might be useful to support or something.
+//For now I'll just comment out the other enum variants to suppress the clippy warnings.
 #[derive(Debug)]
 enum ItemType {
     Element = 1,
