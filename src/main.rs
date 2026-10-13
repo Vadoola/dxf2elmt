@@ -6,14 +6,14 @@ extern crate unicode_segmentation;
 
 use anyhow::{Context, Ok, Result};
 use clap::Parser;
-use dxf::Drawing;
 use dxf::entities::EntityType;
+use dxf::Drawing;
 use qelmt::Definition;
 //use rayon::prelude::*;
 use simple_xml_builder::XMLElement;
 use std::time::Instant;
 use std::{io, path::PathBuf};
-use tracing::{Level, span, trace, warn};
+use tracing::{span, trace, Level};
 use tracing_subscriber::prelude::*;
 
 #[cfg(feature = "venator")]

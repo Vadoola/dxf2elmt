@@ -1,9 +1,9 @@
 use crate::qelmt::{
-    Bounding,
     style::{LineWeight, StyleData},
+    Bounding,
 };
 
-use super::{ScaleEntity, two_dec};
+use super::{two_dec, ScaleEntity};
 use dxf::entities;
 use simple_xml_builder::XMLElement;
 
@@ -24,7 +24,7 @@ pub struct Arc {
 pub struct ArcBuilder<'a> {
     arc: &'a entities::Arc,
     style: Option<StyleData>,
-    antialias: bool
+    antialias: bool,
 }
 
 impl<'a> ArcBuilder<'a> {
@@ -44,10 +44,7 @@ impl<'a> ArcBuilder<'a> {
     }
 
     pub fn antialias(self, antialias: bool) -> Self {
-        Self {
-            antialias,
-            ..self
-        }
+        Self { antialias, ..self }
     }
 
     pub fn build(self) -> Arc {

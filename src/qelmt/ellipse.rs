@@ -1,6 +1,6 @@
 use crate::qelmt::style::{LineWeight, StyleData};
 
-use super::{Bounding, Circularity, ScaleEntity, two_dec};
+use super::{two_dec, Bounding, Circularity, ScaleEntity};
 use dxf::entities::{self, Circle, LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 
@@ -47,11 +47,13 @@ impl<'a> EllipBuilder<'a> {
         }
     }
 
-    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+    pub fn from_polyline(
+        poly: &'a Polyline,
+    ) -> Result<Self, &'static str /*TODO: Need Better Error*/> {
         if !poly.is_circular() {
             return Err("Polyline has poor circularity, can't convert");
         }
-        
+
         Ok(Self {
             source: EllipSource::Polyline(poly),
             style: None,
@@ -59,7 +61,9 @@ impl<'a> EllipBuilder<'a> {
         })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+    pub fn from_lwpolyline(
+        poly: &'a LwPolyline,
+    ) -> Result<Self, &'static str /*TODO: Need Better Error*/> {
         if !poly.is_circular() {
             return Err("Polyline has poor circularity, can't convert");
         }
@@ -79,46 +83,39 @@ impl<'a> EllipBuilder<'a> {
     }
 
     pub fn antialias(self, antialias: bool) -> Self {
-        Self {
-            antialias,
-            ..self
-        }
+        Self { antialias, ..self }
     }
 
     pub fn build(self) -> Ellipse {
         match self.source {
-            EllipSource::Circle(circ) => {
-                Ellipse {
-                    x: circ.center.x - circ.radius,
-                    y: -circ.center.y - circ.radius,
-                    height: circ.radius * 2.0,
-                    width: circ.radius * 2.0,
+            EllipSource::Circle(circ) => Ellipse {
+                x: circ.center.x - circ.radius,
+                y: -circ.center.y - circ.radius,
+                height: circ.radius * 2.0,
+                width: circ.radius * 2.0,
 
-                    antialias: self.antialias,
-                    style: if circ.thickness > 0.5 {
-                        self.style.unwrap_or_default()
-                    } else {
-                        StyleData {
-                            line_weight: LineWeight::Thin,
-                            ..self.style.unwrap_or_default()
-                        }
-                    },
-                }
-            }
-            EllipSource::Ellipse(ellipse) => {
-                Ellipse {
-                    x: ellipse.center.x - ellipse.major_axis.x,
-                    y: -ellipse.center.y - ellipse.major_axis.x * ellipse.minor_axis_ratio,
-                    height: ellipse.major_axis.x * 2.0,
-                    width: ellipse.major_axis.x * 2.0 * ellipse.minor_axis_ratio,
-
-                    antialias: self.antialias,
-                    style: StyleData {
+                antialias: self.antialias,
+                style: if circ.thickness > 0.5 {
+                    self.style.unwrap_or_default()
+                } else {
+                    StyleData {
                         line_weight: LineWeight::Thin,
                         ..self.style.unwrap_or_default()
-                    },
-                }
-            }
+                    }
+                },
+            },
+            EllipSource::Ellipse(ellipse) => Ellipse {
+                x: ellipse.center.x - ellipse.major_axis.x,
+                y: -ellipse.center.y - ellipse.major_axis.x * ellipse.minor_axis_ratio,
+                height: ellipse.major_axis.x * 2.0,
+                width: ellipse.major_axis.x * 2.0 * ellipse.minor_axis_ratio,
+
+                antialias: self.antialias,
+                style: StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..self.style.unwrap_or_default()
+                },
+            },
             EllipSource::Polyline(poly) => {
                 //I did this fold because min requires the vertex to have the Ordering trait
                 //but I forogot min_by exists taking a lambda, so I could compare them using
@@ -186,11 +183,10 @@ impl<'a> EllipBuilder<'a> {
                         ..self.style.unwrap_or_default()
                     },
                 }
-            },
+            }
         }
     }
 }
-
 
 impl From<&Ellipse> for XMLElement {
     fn from(ell: &Ellipse) -> Self {

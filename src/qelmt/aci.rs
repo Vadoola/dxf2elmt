@@ -10,7 +10,7 @@ static ACI_INDEX: [HexColor; 256] = [
     HexColor::rgb(0, 255, 255), // 4  Cyan
     HexColor::rgb(0, 0, 255), // 5  Blue
     HexColor::rgb(255, 0, 255), // 6  Magenta
-    HexColor::rgb(0, 0, 0), // 7  White or Black depending on background, default to black since QET uses a whit background by default
+    HexColor::rgb(0, 0, 0), // 7  White or Black depending on background, default to black since QET uses a white background by default
     HexColor::rgb(128, 128, 128), // 8  Dark gray
     HexColor::rgb(192, 192, 192), // 9  Light gray
     HexColor::rgb(255, 0, 0), // 10
@@ -263,6 +263,7 @@ static ACI_INDEX: [HexColor; 256] = [
 
 #[inline]
 pub fn color_from_aci(index: u8) -> Option<HexColor> {
+    dbg!(index);
     if index == 0 {
         None
     } else {

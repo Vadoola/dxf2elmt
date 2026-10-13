@@ -1,10 +1,10 @@
-use crate::qelmt::Bounding;
 use crate::qelmt::style::LineWeight;
 use crate::qelmt::style::StyleData;
+use crate::qelmt::Bounding;
 
+use super::two_dec;
 use super::LineEnd;
 use super::ScaleEntity;
-use super::two_dec;
 use dxf::entities::{self, LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 
@@ -46,7 +46,9 @@ impl<'a> LineBuilder<'a> {
         }
     }
 
-    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+    pub fn from_polyline(
+        poly: &'a Polyline,
+    ) -> Result<Self, &'static str /*TODO: Need Better Error*/> {
         if poly.__vertices_and_handles.len() != 2 {
             return Err("Error can't convert polyline with more than 2 points into a Line");
         }
@@ -57,7 +59,9 @@ impl<'a> LineBuilder<'a> {
         })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str/*TODO: Need Better Error*/> {
+    pub fn from_lwpolyline(
+        poly: &'a LwPolyline,
+    ) -> Result<Self, &'static str /*TODO: Need Better Error*/> {
         if poly.vertices.len() != 2 {
             return Err("Error can't convert polyline with more than 2 points into a Line");
         }
@@ -154,7 +158,7 @@ pub struct Leader(pub Vec<Line>);
 pub struct LeaderBuilder<'a> {
     leader: &'a entities::Leader,
     style: Option<StyleData>,
-    antialias: bool
+    antialias: bool,
 }
 
 impl<'a> LeaderBuilder<'a> {
@@ -174,10 +178,7 @@ impl<'a> LeaderBuilder<'a> {
     }
 
     pub fn antialias(self, antialias: bool) -> Self {
-        Self {
-            antialias,
-            ..self
-        }
+        Self { antialias, ..self }
     }
 
     pub fn build(self) -> Leader {
@@ -204,12 +205,11 @@ impl<'a> LeaderBuilder<'a> {
                         end2: LineEnd::None,
 
                         antialias: self.antialias,
-                        
+
                         //Leader style information seems to come from dimension style info
                         //for now I'll either just use the default or whats passed in.
                         //style: self.style.unwrap_or_default(),
-                        style: StyleData::default(),
-
+                        style: self.style.clone().unwrap_or_default(),
                     }
                 })
                 .collect(),

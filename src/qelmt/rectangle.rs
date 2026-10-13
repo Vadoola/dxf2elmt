@@ -1,6 +1,6 @@
 use crate::qelmt::style::{LineWeight, StyleData};
 
-use super::{Bounding, Rectangularity, ScaleEntity, two_dec};
+use super::{two_dec, Bounding, Rectangularity, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline};
 use simple_xml_builder::XMLElement;
 
@@ -32,7 +32,9 @@ pub struct RectBuilder<'a> {
 }
 
 impl<'a> RectBuilder<'a> {
-    pub fn from_polyline(poly: &'a Polyline) -> Result<Self, &'static str /*TODO: add better error type later*/> {
+    pub fn from_polyline(
+        poly: &'a Polyline,
+    ) -> Result<Self, &'static str /*TODO: add better error type later*/> {
         if !poly.is_rectangular() {
             return Err("Polyline does not appear to be rectangular, can't convert");
         }
@@ -44,11 +46,13 @@ impl<'a> RectBuilder<'a> {
         })
     }
 
-    pub fn from_lwpolyline(poly: &'a LwPolyline) -> Result<Self, &'static str /*TODO: add better error type later*/> {
+    pub fn from_lwpolyline(
+        poly: &'a LwPolyline,
+    ) -> Result<Self, &'static str /*TODO: add better error type later*/> {
         if !poly.is_rectangular() {
             return Err("LwPolyline does not appear to be rectangular, can't convert");
         }
-        
+
         Ok(Self {
             source: RectSource::LwPolyline(poly),
             style: None,
@@ -64,44 +68,37 @@ impl<'a> RectBuilder<'a> {
     }
 
     pub fn antialias(self, antialias: bool) -> Self {
-        Self {
-            antialias,
-            ..self
-        }
+        Self { antialias, ..self }
     }
 
     pub fn build(self) -> Rectangle {
         match self.source {
-            RectSource::Polyline(poly) => {
-                Rectangle {
-                    x: poly.left_bound(),
-                    y: -poly.top_bound(),
-                    height: (poly.bot_bound() - poly.top_bound()).abs(),
-                    width: (poly.right_bound() - poly.left_bound()).abs(),
-                    rx: 0.0,
-                    ry: 0.0,
-                    antialias: self.antialias,
-                    style: StyleData {
-                        line_weight: LineWeight::Thin,
-                        ..self.style.unwrap_or_default()
-                    },
-                }
-            }
-            RectSource::LwPolyline(lwpoly) => {
-                Rectangle {
-                    x: lwpoly.left_bound(),
-                    y: -lwpoly.top_bound(),
-                    height: (lwpoly.bot_bound() - lwpoly.top_bound()).abs(),
-                    width: (lwpoly.right_bound() - lwpoly.left_bound()).abs(),
-                    rx: 0.0,
-                    ry: 0.0,
-                    antialias: self.antialias,
-                    style: StyleData {
-                        line_weight: LineWeight::Thin,
-                        ..self.style.unwrap_or_default()
-                    },
-                }
-            }
+            RectSource::Polyline(poly) => Rectangle {
+                x: poly.left_bound(),
+                y: -poly.top_bound(),
+                height: (poly.bot_bound() - poly.top_bound()).abs(),
+                width: (poly.right_bound() - poly.left_bound()).abs(),
+                rx: 0.0,
+                ry: 0.0,
+                antialias: self.antialias,
+                style: StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..self.style.unwrap_or_default()
+                },
+            },
+            RectSource::LwPolyline(lwpoly) => Rectangle {
+                x: lwpoly.left_bound(),
+                y: -lwpoly.top_bound(),
+                height: (lwpoly.bot_bound() - lwpoly.top_bound()).abs(),
+                width: (lwpoly.right_bound() - lwpoly.left_bound()).abs(),
+                rx: 0.0,
+                ry: 0.0,
+                antialias: self.antialias,
+                style: StyleData {
+                    line_weight: LineWeight::Thin,
+                    ..self.style.unwrap_or_default()
+                },
+            },
         }
     }
 }

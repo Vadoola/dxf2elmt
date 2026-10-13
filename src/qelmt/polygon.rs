@@ -1,9 +1,9 @@
 use crate::qelmt::{
-    Bounding,
     style::{LineWeight, StyleData},
+    Bounding,
 };
 
-use super::{Mean, ScaleEntity, two_dec};
+use super::{two_dec, Mean, ScaleEntity};
 use dxf::entities::{LwPolyline, Polyline, Solid, Spline};
 use simple_xml_builder::XMLElement;
 use std::ops::{Add, Mul};
@@ -241,38 +241,36 @@ impl<'a> PolyBuilder<'a> {
                     },
                 }
             }
-            PolySource::Solid(solid) => {
-                Polygon {
-                    coordinates: vec![
-                        Coordinate {
-                            x: solid.first_corner.x,
-                            y: -solid.first_corner.y,
-                        },
-                        Coordinate {
-                            x: solid.second_corner.x,
-                            y: -solid.second_corner.y,
-                        },
-                        Coordinate {
-                            x: solid.third_corner.x,
-                            y: -solid.third_corner.y,
-                        },
-                        Coordinate {
-                            x: solid.fourth_corner.x,
-                            y: -solid.fourth_corner.y,
-                        },
-                    ],
-                    closed: true,
-                    antialias: self.antialias,
-                    style: if solid.thickness > 0.5 {
-                        self.style.unwrap_or_default()
-                    } else {
-                        StyleData {
-                            line_weight: LineWeight::Thin,
-                            ..self.style.unwrap_or_default()
-                        }
+            PolySource::Solid(solid) => Polygon {
+                coordinates: vec![
+                    Coordinate {
+                        x: solid.first_corner.x,
+                        y: -solid.first_corner.y,
                     },
-                }
-            }
+                    Coordinate {
+                        x: solid.second_corner.x,
+                        y: -solid.second_corner.y,
+                    },
+                    Coordinate {
+                        x: solid.third_corner.x,
+                        y: -solid.third_corner.y,
+                    },
+                    Coordinate {
+                        x: solid.fourth_corner.x,
+                        y: -solid.fourth_corner.y,
+                    },
+                ],
+                closed: true,
+                antialias: self.antialias,
+                style: if solid.thickness > 0.5 {
+                    self.style.unwrap_or_default()
+                } else {
+                    StyleData {
+                        line_weight: LineWeight::Thin,
+                        ..self.style.unwrap_or_default()
+                    }
+                },
+            },
         }
     }
 }
